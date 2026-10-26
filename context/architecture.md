@@ -38,7 +38,7 @@
 
 ## Auth and access model
 
-- Family/admin log in via Clerk; FastAPI verifies JWT via JWKS; role from `publicMetadata`; users synced via Clerk webhook (`clerk_user_id`).
+- Family/admin log in via Clerk; FastAPI verifies JWT via JWKS; role from `publicMetadata`; users synced via Clerk webhook (`clerk_user_id`); a verified user missing from the DB is created as `family` on first request (webhook stays source of truth for role).
 - Elderly have no account: identified by `from_number` (E.164) in pre-call hook; must be `ACTIVE` (consent given) to access personal data.
 - Each call gets a `call_session` with an expiring `session_token` (stored hashed); all Dograh tools resolve `elder_id` from it.
 - Family access to elder data only via `elder_family` link (`owner` manages, `viewer` reads). Admin manages KB and scam patterns only.
