@@ -4,7 +4,7 @@ Update after every meaningful implementation change.
 
 ## Current phase
 
-- Not started (plan: 4 weeks, ~5h/day).
+- Week 1 (plan: 4 weeks, ~5h/day).
 
 ## Current goal
 
@@ -12,7 +12,7 @@ Update after every meaningful implementation change.
 
 ## Completed
 
-- None.
+- `INF-01`: skeletons for `backend/` (FastAPI, uv, empty packages, pydantic-settings config, async Alembic init, no revisions), `ride-sim/` (FastAPI, uv), `frontend/` (Next.js 16 App Router, TS strict, Tailwind v4, shadcn/ui + sonner, Clerk/zod/RHF installed but not wired), `infra/docker-compose.yml` (PostgreSQL 17 + pgvector only), `dograh/` placeholder. Only `GET /health` on both Python services, one test each.
 
 ## In progress
 
@@ -20,7 +20,7 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- `INF-01`: Docker Compose (PostgreSQL + pgvector, Dograh, OSRM), FastAPI + Next.js skeletons, Alembic init.
+- Add Dograh and OSRM services to `infra/docker-compose.yml` (deferred from `INF-01`; do with the tasks that need them).
 - `DB-01`: schema `users`, `elders`, `elder_family`, `call_sessions`.
 - `AUTH-01`: Clerk + JWT verification + user sync webhook.
 - `REG-01`: elder registration form (E.164, duplicate → link request).
@@ -46,5 +46,7 @@ Update after every meaningful implementation change.
 - Scam check split: real-time in-call + async post-call memory extraction.
 
 ## Session notes
+
+- Tooling: npm 11+ required — npm 10 fails to resolve `@hookform/resolvers` optional peers (`ERESOLVE`). uv ≥0.13 `uv init --app` creates a `src/` package layout; services use a flat `app/` instead (no build-system).
 
 - Dograh notes: pre-call hook 10s timeout, web calls need hook mode `Always` + `caller_number` context variable; greeting needs fallback for missing variables; verify `{{initial_context.*}}` rendering in tool test panel.
