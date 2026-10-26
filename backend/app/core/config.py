@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     app_env: str = "development"
     # Local-dev default matches infra/docker-compose.yml; override via DATABASE_URL.
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_companion"
+    # Dropped and recreated by the test suite; must be a separate database.
+    test_database_url: str = (
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_companion_test"
+    )
 
 
 @lru_cache

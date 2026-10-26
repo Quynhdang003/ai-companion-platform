@@ -13,6 +13,7 @@ Update after every meaningful implementation change.
 ## Completed
 
 - `INF-01`: skeletons for `backend/` (FastAPI, uv, empty packages, pydantic-settings config, async Alembic init, no revisions), `ride-sim/` (FastAPI, uv), `frontend/` (Next.js 16 App Router, TS strict, Tailwind v4, shadcn/ui + sonner, Clerk/zod/RHF installed but not wired), `infra/docker-compose.yml` (PostgreSQL 17 + pgvector only), `dograh/` placeholder. Only `GET /health` on both Python services, one test each.
+- `DB-01`: core schema `users`, `elders`, `elder_family`, `call_sessions` (models in `backend/app/models/`, migration `2799efe1c415`). UUID PKs (`gen_random_uuid()`), enum-like columns as `VARCHAR` + named `CHECK`, E.164 `CHECK` on `elders.phone_e164`, `ON DELETE CASCADE` from elders/users, `call_sessions.elder_id` nullable for unknown callers. `app/core/db.py` provides async engine + `get_db()`. Tests run against a real Postgres test DB.
 
 ## In progress
 
@@ -21,7 +22,6 @@ Update after every meaningful implementation change.
 ## Next
 
 - Add Dograh and OSRM services to `infra/docker-compose.yml` (deferred from `INF-01`; do with the tasks that need them).
-- `DB-01`: schema `users`, `elders`, `elder_family`, `call_sessions`.
 - `AUTH-01`: Clerk + JWT verification + user sync webhook.
 - `REG-01`: elder registration form (E.164, duplicate → link request).
 - `ID-01`: pre-call hook + `session_token` + `confirm_activation` tool.
@@ -48,5 +48,7 @@ Update after every meaningful implementation change.
 ## Session notes
 
 - Tooling: npm 11+ required — npm 10 fails to resolve `@hookform/resolvers` optional peers (`ERESOLVE`). uv ≥0.13 `uv init --app` creates a `src/` package layout; services use a flat `app/` instead (no build-system).
+
+- Tests: backend `pytest` needs `docker compose up` (infra); the suite drops/recreates `ai_companion_test` (`TEST_DATABASE_URL`, must end in `_test`) and runs migrations on it. Constraint names follow the naming convention in `app/models/base.py`.
 
 - Dograh notes: pre-call hook 10s timeout, web calls need hook mode `Always` + `caller_number` context variable; greeting needs fallback for missing variables; verify `{{initial_context.*}}` rendering in tool test panel.
