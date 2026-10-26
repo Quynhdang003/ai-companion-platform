@@ -14,7 +14,7 @@ Update after every meaningful implementation change.
 
 - `INF-01`: skeletons for `backend/` (FastAPI, uv, empty packages, pydantic-settings config, async Alembic init, no revisions), `ride-sim/` (FastAPI, uv), `frontend/` (Next.js 16 App Router, TS strict, Tailwind v4, shadcn/ui + sonner, Clerk/zod/RHF installed but not wired), `infra/docker-compose.yml` (PostgreSQL 17 + pgvector only), `dograh/` placeholder. Only `GET /health` on both Python services, one test each.
 - `DB-01`: core schema `users`, `elders`, `elder_family`, `call_sessions` (models in `backend/app/models/`, migration `2799efe1c415`). UUID PKs (`gen_random_uuid()`), enum-like columns as `VARCHAR` + named `CHECK`, E.164 `CHECK` on `elders.phone_e164`, `ON DELETE CASCADE` from elders/users, `call_sessions.elder_id` nullable for unknown callers. `app/core/db.py` provides async engine + `get_db()`. Tests run against a real Postgres test DB.
-- `AUTH-01` (backend): Clerk JWT verification via JWKS (`app/core/auth.py`: RS256, `iss`, `azp`, `CurrentUser`, `require_role`), user sync webhook `POST /webhooks/clerk` (Svix-verified; `user.created/updated` upsert role from `publicMetadata.role`, `user.deleted` removes user + family links), lazy user creation on first request, `GET /api/me`, global error shape `{"error": {"code", "message"}}` (`app/core/errors.py`), CORS. Tested with locally signed JWTs/webhooks; no real Clerk instance yet.
+- `AUTH-01` (backend): Clerk JWT verification via JWKS (`app/core/auth.py`: RS256, `iss`, `azp`, `CurrentUser`, `require_role`), user sync webhook `POST /webhooks/clerk` (Svix-verified; `user.created/updated` upsert role from `publicMetadata.role`, `user.deleted` removes user + family links), lazy user creation on first request, `GET /api/me`, global error shape `{"error": {"code", "message"}}` (`app/core/errors.py`), CORS. Tested with locally signed JWTs/webhooks, and verified live against the Clerk dev instance (webhooks via ngrok, real session tokens: 16/16 checks).
 
 ## In progress
 
@@ -52,6 +52,6 @@ Update after every meaningful implementation change.
 
 - Tests: backend `pytest` needs `docker compose up` (infra); the suite drops/recreates `ai_companion_test` (`TEST_DATABASE_URL`, must end in `_test`) and runs migrations on it. Constraint names follow the naming convention in `app/models/base.py`.
 
-- Auth: no Clerk instance yet — setup steps in README. svix 2.x `Webhook.verify()` returns `None`; parse the body separately. Without `CLERK_ISSUER` / `CLERK_WEBHOOK_SECRET` the endpoints return 500 `*_not_configured`.
+- Auth: Clerk dev instance configured (setup steps in README); webhook endpoint URL must include the `/webhooks/clerk` path. svix 2.x `Webhook.verify()` returns `None`; parse the body separately. Without `CLERK_ISSUER` / `CLERK_WEBHOOK_SECRET` the endpoints return 500 `*_not_configured`.
 
 - Dograh notes: pre-call hook 10s timeout, web calls need hook mode `Always` + `caller_number` context variable; greeting needs fallback for missing variables; verify `{{initial_context.*}}` rendering in tool test panel.
