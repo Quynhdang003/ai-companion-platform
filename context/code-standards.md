@@ -24,8 +24,10 @@
 ## Next.js
 
 - Server components by default; `use client` only for browser interaction.
-- Clerk middleware protects `/dashboard/*` and `/admin/*`.
-- Backend calls go through one typed API client in `lib/api/`, attaching the Clerk token.
+- Clerk middleware protects `/dashboard/*` and `/admin/*` (in `proxy.ts`: Next 16 renamed `middleware.ts` to `proxy.ts`).
+- `cacheComponents` is on: anything that reads the request (`auth()`, `getServerApi()`, Clerk `<Show>`, `<SignIn>`/`<SignUp>`) renders inside `<Suspense>`, never at a layout's top level. Exception: a gate that must decide before anything renders (the `/admin` role check) sits at the layout's top level with `export const instant = false`.
+- Backend calls go through one typed API client in `lib/api/` (`createApiClient`; `getServerApi()` on the server), attaching the Clerk token; responses parsed with Zod schemas in `lib/api/schemas.ts`, errors thrown as `ApiError` (`status`, `code`).
+- Clerk Core 3 (`@clerk/nextjs` 7): `<SignedIn>`, `<SignedOut>` and `<Protect>` are removed; use `<Show when=...>`.
 - Forms: React Hook Form + Zod; toasts via Sonner.
 
 ## Styling
