@@ -29,16 +29,18 @@ async def get_or_create(db: AsyncSession, clerk_user_id: str) -> User:
     return await db.scalar(select(User).where(User.clerk_user_id == clerk_user_id))
 
 
-async def upsert_from_clerk(
-    db: AsyncSession, clerk_user_id: str, public_metadata: Mapping[str, Any]
-) -> User:
-    role = role_from_metadata(public_metadata)
+async def upsert_from_clerk(db: AsyncSession, data: ClerkUserData) -> User:
+    synced = {
+        "role": role_from_metadata(data.public_metadata),
+        "display_name": data.display_name,
+        "email": data.primary_email,
+    }
     stmt = (
         insert(User)
-        .values(clerk_user_id=clerk_user_id, role=role)
+        .values(clerk_user_id=data.id, **synced)
         .on_conflict_do_update(
             index_elements=[User.clerk_user_id],
-            set_={"role": role, "updated_at": func.now()},
+            set_={**synced, "updated_at": func.now()},
         )
         .returning(User)
     )
@@ -53,8 +55,7 @@ async def delete_by_clerk_id(db: AsyncSession, clerk_user_id: str) -> None:
 async def apply_clerk_event(db: AsyncSession, event: ClerkEvent) -> None:
     """Apply a verified Clerk webhook event; event types other than user.* are ignored."""
     if event.type in ("user.created", "user.updated"):
-        data = ClerkUserData.model_validate(event.data)
-        await upsert_from_clerk(db, data.id, data.public_metadata)
+        await upsert_from_clerk(db, ClerkUserData.model_validate(event.data))
     elif event.type == "user.deleted":
         data = ClerkUserData.model_validate(event.data)
         await delete_by_clerk_id(db, data.id)

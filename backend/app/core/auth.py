@@ -94,3 +94,7 @@ def require_role(*roles: UserRole) -> Callable[[User], Awaitable[User]]:
         return user
 
     return dependency
+
+
+# Family-only web routes; admins manage the knowledge base, not elders.
+FamilyUser = Annotated[User, Depends(require_role(UserRole.FAMILY))]

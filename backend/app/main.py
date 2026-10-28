@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.web import me
+from app.api.web import elders, link_requests, me
 from app.api.webhooks import clerk
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
@@ -17,6 +17,8 @@ app.add_middleware(
 register_error_handlers(app)
 
 app.include_router(me.router)
+app.include_router(elders.router)
+app.include_router(link_requests.router)
 app.include_router(clerk.router)
 
 

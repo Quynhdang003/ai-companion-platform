@@ -76,7 +76,7 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 | Dograh ↔ Backend | API key (Bearer) + per-call `session_token` |
 | Deploy | Vercel (frontend) + VPS Docker Compose (Dograh, FastAPI, Ride Simulator, OSRM, PostgreSQL) |
 
-**Core tables:** `users(id, clerk_user_id, role)`, `elders(id, phone_e164 UNIQUE, full_name, preferred_name, status, consent_at, profile JSONB)`, `elder_family(elder_id, user_id, role, created_at)`, `call_sessions(id, elder_id, session_token_hash, workflow_run_id, from_number, started_at, expires_at)`.
+**Core tables:** `users(id, clerk_user_id, role, display_name, email)`, `elders(id, phone_e164 UNIQUE, full_name, preferred_name, status, consent_at, profile JSONB)`, `elder_family(elder_id, user_id, role, created_at)`, `elder_link_requests(id, elder_id, requester_id, status, decided_by, decided_at, created_at)`, `call_sessions(id, elder_id, session_token_hash, workflow_run_id, from_number, started_at, expires_at)`.
 
 ## Agent rules
 
