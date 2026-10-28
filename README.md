@@ -29,6 +29,17 @@ cd ride-sim && uv sync
 cd frontend && npm install
 ```
 
+### Clerk (web auth)
+
+1. Create a Clerk application (development instance).
+2. `backend/.env`: `CLERK_ISSUER` = the instance's Frontend API URL (e.g. `https://xxx.clerk.accounts.dev`; JWKS is read from `<issuer>/.well-known/jwks.json`).
+3. `frontend/.env.local`: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` from the **same** instance (Dashboard → API keys). Without them `next dev` runs Clerk in keyless mode on a temporary instance, whose tokens the backend rejects.
+4. Admins: set `{"role": "admin"}` in the user's **public metadata**. Everyone else is `family`.
+5. Webhooks → add endpoint `<backend-url>/webhooks/clerk` with events `user.created`, `user.updated`, `user.deleted`. Locally, expose the backend with a tunnel (e.g. `ngrok http 8000`).
+6. Copy the endpoint's signing secret (`whsec_...`) into `CLERK_WEBHOOK_SECRET`.
+
+Users are also created (as `family`) on their first authenticated request, so sign-in works even before the webhook arrives.
+
 ## Run
 
 ```bash

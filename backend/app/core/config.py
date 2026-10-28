@@ -14,6 +14,14 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_companion_test"
     )
 
+    # Clerk Frontend API URL, e.g. https://xxx.clerk.accounts.dev (JWT `iss`, JWKS host).
+    clerk_issuer: str = ""
+    # Origins allowed as the JWT `azp` claim.
+    clerk_authorized_parties: list[str] = ["http://localhost:3000"]
+    # Svix signing secret of the Clerk webhook endpoint (whsec_...).
+    clerk_webhook_secret: str = ""
+    cors_origins: list[str] = ["http://localhost:3000"]
+
 
 @lru_cache
 def get_settings() -> Settings:
