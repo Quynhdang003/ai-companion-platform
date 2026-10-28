@@ -16,6 +16,7 @@ Update after every meaningful implementation change.
 - `DB-01`: core schema `users`, `elders`, `elder_family`, `call_sessions` (models in `backend/app/models/`, migration `2799efe1c415`). UUID PKs (`gen_random_uuid()`), enum-like columns as `VARCHAR` + named `CHECK`, E.164 `CHECK` on `elders.phone_e164`, `ON DELETE CASCADE` from elders/users, `call_sessions.elder_id` nullable for unknown callers. `app/core/db.py` provides async engine + `get_db()`. Tests run against a real Postgres test DB.
 - `AUTH-01` (backend): Clerk JWT verification via JWKS (`app/core/auth.py`: RS256, `iss`, `azp`, `CurrentUser`, `require_role`), user sync webhook `POST /webhooks/clerk` (Svix-verified; `user.created/updated` upsert role from `publicMetadata.role`, `user.deleted` removes user + family links), lazy user creation on first request, `GET /api/me`, global error shape `{"error": {"code", "message"}}` (`app/core/errors.py`), CORS. Tested with locally signed JWTs/webhooks, and verified live against the Clerk dev instance (webhooks via ngrok, real session tokens: 16/16 checks).
 - `AUTH-02` (frontend): `ClerkProvider` (vi-VN via `@clerk/localizations`, accent color/font from tokens), `proxy.ts` requiring sign-in for `/dashboard/*` and `/admin/*`, `/sign-in` + `/sign-up` pages, typed API client (`lib/api/`: `createApiClient`, `getServerApi()`, Zod schemas, `ApiError`), `/dashboard` placeholder showing the role from `GET /api/me`, `/admin` placeholder whose layout checks the role before rendering (`instant = false`; non-admins get a 307 to `/dashboard`), shared `SiteHeader` with `UserButton`. Also wired the `ui-context.md` tokens into `globals.css` and switched the font to Be Vietnam Pro (`lang="vi"`). Verified against the Clerk dev instance + real backend: signed-out → 307 to `/sign-in` for all protected routes; family → `/dashboard` shows "Gia đình", `/admin` → 307 `/dashboard`; admin → `/admin` renders, `/dashboard` shows "Quản trị viên". Browser sign-in form and widget styling not checked by hand yet.
+- `UI-01` (frontend): public pages from the `Demo.dc.html` design, brand renamed to "Touch the Light". Route group `app/(public)/` (URLs unchanged) holding `/` (landing: hero, how it works, CTA), new `/demo` (hotline + web-call cards, 3 scenario tabs with keyboard ←/→, risk bar, CTA) and `/sign-in`, `/sign-up`; shared `PublicHero`/`PublicHeader`/`PublicNav`/`PublicFooter`/`CtaBanner` in `components/public/`, `BrandLogo` also used by the dashboard `SiteHeader`. Derived color/gradient/shadow tokens + utilities in `globals.css` (documented in `ui-context.md`). Header account area streams in `<Suspense>` (`/` and `/demo` are partial prerender). `NEXT_PUBLIC_DEMO_PHONE_NUMBER` (unset → "Sắp ra mắt"). Verified with `npm run lint` + `npm run build` and headless Chrome at 1440px / 390px: all pages render, no horizontal overflow, no console errors, tabs switch by click and keyboard, signed-out `/dashboard` still 307 → `/sign-in`. Signed-in header state ("Trang quản lý" + `UserButton`) not checked in a browser yet.
 
 ## In progress
 
@@ -25,7 +26,10 @@ Update after every meaningful implementation change.
 
 - Add Dograh and OSRM services to `infra/docker-compose.yml` (deferred from `INF-01`; do with the tasks that need them).
 - Client-side API binding (`useAuth().getToken` → `createApiClient`) when the first client component needs the backend (likely `REG-01`).
-- `REG-01`: elder registration form (E.164, duplicate → link request).
+- `REG-01`: elder registration form (E.164, duplicate → link request). Then point the public "Đăng ký cho người thân" CTAs at it for signed-in users (now `/sign-up`).
+- Web call simulation page: point `/demo`'s "Mở trang gọi thử" at it (now `/dashboard`).
+- Public "Tầm nhìn" / "Tài nguyên" pages from the design are hidden (no design files yet).
+- Rename the Clerk application to "Touch the Light" in the Clerk Dashboard (the sign-in card still says "My Application").
 - `ID-01`: pre-call hook + `session_token` + `confirm_activation` tool.
 
 ## Open questions
@@ -36,6 +40,7 @@ Update after every meaningful implementation change.
 - Real telephony provider (if time allows) and its caller ID format.
 - In-call scam check trigger: per turn vs every N turns.
 - Data retention period for transcripts and recordings.
+- Public demo hotline number for `/demo` (depends on real telephony), and whether the footer should name the university.
 - Clerk deprecates `createRouteMatcher` (removed in its next major) in favor of auth checks in each page/layout. Kept for now: it gives clean 307s before rendering, and protected data is guarded by the backend anyway. Revisit when upgrading Clerk's major version.
 
 ## Architecture decisions

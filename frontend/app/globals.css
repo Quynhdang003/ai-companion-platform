@@ -39,6 +39,16 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-mid: var(--accent-mid);
+  --color-accent-deep: var(--accent-deep);
+  --color-error-soft: var(--error-soft);
+  --color-error-border: var(--error-border);
+  --color-warning-soft: var(--warning-soft);
+  --color-success-soft: var(--success-soft);
+  --color-error-text: var(--error-text);
+  --color-warning-text: var(--warning-text);
+  --color-success-text: var(--success-text);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -59,6 +69,31 @@
   --state-error: #dc2626;
   --state-warning: #d97706;
   --state-success: #16a34a;
+
+  /* Derived tokens: mixed from the base tokens above, no new hex values. */
+  --accent-soft: color-mix(in srgb, var(--accent-primary) 9%, var(--bg-surface));
+  --accent-mid: color-mix(in srgb, var(--accent-primary) 75%, var(--state-success));
+  --accent-deep: color-mix(in srgb, var(--accent-primary) 70%, var(--text-primary));
+  --error-soft: color-mix(in srgb, var(--state-error) 8%, var(--bg-surface));
+  --error-border: color-mix(in srgb, var(--state-error) 25%, var(--bg-surface));
+  --warning-soft: color-mix(in srgb, var(--state-warning) 12%, var(--bg-surface));
+  --success-soft: color-mix(in srgb, var(--state-success) 10%, var(--bg-surface));
+  --error-text: color-mix(in srgb, var(--state-error) 82%, black);
+  --warning-text: color-mix(in srgb, var(--state-warning) 62%, black);
+  --success-text: color-mix(in srgb, var(--state-success) 66%, black);
+  --grad-brand: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-mid) 100%);
+  --grad-text: linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-mid) 60%, var(--accent-primary) 100%);
+  --grad-deep: linear-gradient(135deg, var(--accent-deep) 0%, var(--accent-primary) 55%, var(--accent-mid) 100%);
+  --grad-risk: linear-gradient(90deg, var(--state-success) 0%, var(--state-warning) 55%, var(--state-error) 100%);
+  --grad-hero:
+    radial-gradient(55% 60% at 88% 8%, color-mix(in srgb, var(--accent-primary) 18%, transparent) 0%, transparent 70%),
+    radial-gradient(45% 55% at 4% 96%, color-mix(in srgb, var(--state-warning) 14%, transparent) 0%, transparent 70%),
+    var(--bg-base);
+  --grad-glow: radial-gradient(circle, color-mix(in srgb, var(--state-warning) 45%, transparent) 0%, transparent 65%);
+  --shadow-card:
+    0 1px 2px color-mix(in srgb, var(--text-primary) 6%, transparent),
+    0 18px 40px -24px color-mix(in srgb, var(--accent-deep) 40%, transparent);
+  --shadow-pill: 0 1px 2px color-mix(in srgb, var(--text-primary) 12%, transparent);
 
   --background: var(--bg-base);
   --foreground: var(--text-primary);
@@ -126,6 +161,41 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+@utility bg-grad-brand {
+  background-image: var(--grad-brand);
+}
+
+@utility bg-grad-deep {
+  background-image: var(--grad-deep);
+}
+
+@utility bg-grad-risk {
+  background-image: var(--grad-risk);
+}
+
+@utility bg-grad-glow {
+  background-image: var(--grad-glow);
+}
+
+/* Shorthand: --grad-hero ends with a background color layer. */
+@utility bg-hero {
+  background: var(--grad-hero);
+}
+
+@utility text-gradient {
+  background-image: var(--grad-text);
+  background-clip: text;
+  color: transparent;
+}
+
+@utility shadow-card {
+  box-shadow: var(--shadow-card);
+}
+
+@utility shadow-pill {
+  box-shadow: var(--shadow-pill);
 }
 
 @layer base {

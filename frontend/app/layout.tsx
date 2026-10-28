@@ -7,7 +7,7 @@ import "./globals.css";
 const beVietnamPro = Be_Vietnam_Pro({
   variable: "--font-sans",
   subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -16,8 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Companion",
-  description: "Family and admin website for the AI Companion platform",
+  title: { default: "Touch the Light", template: "%s · Touch the Light" },
+  description:
+    "Trợ lý giọng nói trò chuyện với ông bà, nhớ chuyện cũ, giúp việc hằng ngày và cảnh báo lừa đảo cho cả gia đình.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
