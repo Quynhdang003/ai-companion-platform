@@ -42,7 +42,7 @@ export default function Home() {
           </p>
           <div className="mt-2 flex flex-wrap justify-center gap-3">
             <Link
-              href="/sign-up"
+              href="/dashboard/elders/new"
               className="inline-flex h-14 items-center rounded-full bg-grad-brand px-7 text-[17px] font-bold text-card shadow-card"
             >
               Đăng ký cho người thân
@@ -86,7 +86,7 @@ export default function Home() {
       <CtaBanner
         title="Đăng ký cho ông bà ngay hôm nay"
         description="Chỉ cần họ tên và số điện thoại. Lần gọi đầu tiên, trợ lý sẽ xin phép ông bà trước khi bắt đầu."
-        href="/sign-up"
+        href="/dashboard/elders/new"
         action="Đăng ký cho người thân"
       />
     </main>

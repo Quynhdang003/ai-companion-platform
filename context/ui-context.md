@@ -77,6 +77,8 @@ shadcn/ui on Tailwind, in `components/ui/`. Add components via shadcn CLI, don't
 - Dashboard: left sidebar (fixed width, right border) + main content; collapses to top nav on mobile.
 - Elder detail: profile card, call history list, scam alerts with risk badge.
 - Navbar (dashboard/admin): top bar with bottom border, brand logo, user menu (Clerk).
+- Dashboard (current, before the sidebar): page title + primary action, sections "Yêu cầu chờ bạn duyệt" (only when any), "Người thân của bạn" (card grid, dashed empty state), "Yêu cầu bạn đã gửi". Status badges are `rounded-full` pills on the soft tokens (`bg-warning-soft text-warning-text`, …), 14px text. shadcn controls default to 32px / 12–14px; pass `h-11 text-base` so inputs and buttons stay ≥ 44px and ≥ 16px.
+- Forms: centered `max-w-xl` card, shadcn `Field` + `FieldLabel` + `FieldDescription` + `FieldError`; backend error codes map to field errors, anything else to a toast.
 - Modal: centered overlay with backdrop blur.
 - Admin: tables for KB documents and scam patterns with search and CRUD dialogs.
 

@@ -1,5 +1,14 @@
-import type { z } from "zod";
-import { errorBodySchema, userSchema } from "./schemas";
+import { z } from "zod";
+import {
+  elderSchema,
+  errorBodySchema,
+  incomingRequestSchema,
+  linkRequestDecisionSchema,
+  outgoingRequestSchema,
+  registrationSchema,
+  userSchema,
+  type ElderCreate,
+} from "./schemas";
 
 /** Non-2xx backend response, carrying the backend's error `code`. */
 export class ApiError extends Error {
@@ -24,19 +33,28 @@ function apiBaseUrl(): string {
   return url.replace(/\/+$/, "");
 }
 
+type RequestOptions = { method?: "GET" | "POST"; json?: unknown };
+
 async function request<T>(
   getToken: GetToken,
   path: string,
   schema: z.ZodType<T>,
-  init: RequestInit = {},
+  { method = "GET", json }: RequestOptions = {},
 ): Promise<T> {
-  const headers = new Headers(init.headers);
+  const headers = new Headers();
   const token = await getToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
+  if (json !== undefined) {
+    headers.set("Content-Type", "application/json");
+  }
 
-  const response = await fetch(`${apiBaseUrl()}${path}`, { ...init, headers });
+  const response = await fetch(`${apiBaseUrl()}${path}`, {
+    method,
+    headers,
+    body: json === undefined ? undefined : JSON.stringify(json),
+  });
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
@@ -58,6 +76,38 @@ async function request<T>(
 export function createApiClient(getToken: GetToken) {
   return {
     getMe: () => request(getToken, "/api/me", userSchema),
+    listElders: () => request(getToken, "/api/elders", z.array(elderSchema)),
+    createElder: (body: ElderCreate) =>
+      request(getToken, "/api/elders", registrationSchema, {
+        method: "POST",
+        json: body,
+      }),
+    listIncomingRequests: () =>
+      request(
+        getToken,
+        "/api/link-requests/incoming",
+        z.array(incomingRequestSchema),
+      ),
+    listOutgoingRequests: () =>
+      request(
+        getToken,
+        "/api/link-requests/outgoing",
+        z.array(outgoingRequestSchema),
+      ),
+    approveRequest: (id: string) =>
+      request(
+        getToken,
+        `/api/link-requests/${id}/approve`,
+        linkRequestDecisionSchema,
+        { method: "POST" },
+      ),
+    rejectRequest: (id: string) =>
+      request(
+        getToken,
+        `/api/link-requests/${id}/reject`,
+        linkRequestDecisionSchema,
+        { method: "POST" },
+      ),
   };
 }
 

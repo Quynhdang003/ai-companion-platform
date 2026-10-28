@@ -82,7 +82,7 @@ export default function DemoPage() {
       <CtaBanner
         title="Sẵn sàng cho ông bà dùng thật?"
         description="Đăng ký chỉ với họ tên và số điện thoại."
-        href="/sign-up"
+        href="/dashboard/elders/new"
         action="Đăng ký cho người thân"
       />
     </main>
