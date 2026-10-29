@@ -32,6 +32,7 @@ TEST_AZP = "http://localhost:3000"
 WEBHOOK_SECRET = "whsec_" + base64.b64encode(b"test-webhook-secret-0123").decode()
 
 TokenFactory = Callable[..., str]
+HeadersFactory = Callable[[str], dict[str, str]]
 
 
 def alembic_config(db_url: str) -> Config:
@@ -113,6 +114,12 @@ def make_token(rsa_key: rsa.RSAPrivateKey) -> TokenFactory:
         return jwt.encode(claims, key or rsa_key, algorithm="RS256", headers={"kid": "test"})
 
     return factory
+
+
+@pytest.fixture
+def auth_headers(make_token: TokenFactory) -> HeadersFactory:
+    """Bearer headers for a Clerk user id; the user is created as `family` on first request."""
+    return lambda sub: {"Authorization": f"Bearer {make_token(sub=sub)}"}
 
 
 @pytest.fixture

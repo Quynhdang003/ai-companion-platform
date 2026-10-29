@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "Touch the Light", template: "%s · Touch the Light" },
   description:
-    "Trợ lý giọng nói trò chuyện với ông bà, nhớ chuyện cũ, giúp việc hằng ngày và cảnh báo lừa đảo cho cả gia đình.",
+    "Trợ lý giọng nói trò chuyện với người thân của bạn, nhớ chuyện cũ, giúp việc hằng ngày và cảnh báo lừa đảo cho cả gia đình.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

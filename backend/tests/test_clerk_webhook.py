@@ -55,6 +55,26 @@ async def test_user_updated_changes_role_and_falls_back_to_family(
     assert user is not None and user.role is UserRole.FAMILY
 
 
+async def test_user_created_stores_name_and_primary_email(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    await post_event(
+        client,
+        "user.created",
+        {
+            "id": "user_n",
+            "first_name": "Hoa",
+            "last_name": "Nguyễn",
+            "email_addresses": [{"id": "idn_1", "email_address": "hoa@example.com"}],
+            "primary_email_address_id": "idn_1",
+        },
+    )
+
+    user = await get_user(session, "user_n")
+    assert user is not None
+    assert (user.display_name, user.email) == ("Hoa Nguyễn", "hoa@example.com")
+
+
 async def test_webhook_after_lazy_create_updates_same_row(
     client: AsyncClient, session: AsyncSession
 ) -> None:

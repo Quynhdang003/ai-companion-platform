@@ -31,7 +31,7 @@
 
 ## Storage model
 
-- **PostgreSQL**: users, elders, family links, call sessions, call logs + summaries, memories (text + vector), KB chunks (text + vector + tsvector), scam patterns, scam events, reminders, ride bookings.
+- **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs + summaries, memories (text + vector), KB chunks (text + vector + tsvector), scam patterns, scam events, reminders, ride bookings.
 - **Dograh**: recordings and raw transcripts (backend stores URLs + processed transcript).
 - **Clerk**: credentials and sessions only; business data stays in PostgreSQL.
 - **Ride Simulator DB/state**: drivers, trips (separate from backend DB).
@@ -42,7 +42,7 @@
 - Website: `proxy.ts` requires a Clerk session for `/dashboard/*` and `/admin/*`; the `/admin` layout also checks the role via `GET /api/me` before rendering and redirects non-admins to `/dashboard` (navigation only; the backend enforces roles). The role shown on the website always comes from the backend DB, not Clerk metadata.
 - Elderly have no account: identified by `from_number` (E.164) in pre-call hook; must be `ACTIVE` (consent given) to access personal data.
 - Each call gets a `call_session` with an expiring `session_token` (stored hashed); all Dograh tools resolve `elder_id` from it.
-- Family access to elder data only via `elder_family` link (`owner` manages, `viewer` reads). Admin manages KB and scam patterns only.
+- Family access to elder data only via `elder_family` link (`owner` manages, `viewer` reads). Registering a taken number creates an `elder_link_requests` row instead; only the owner can approve (requester becomes `viewer`) or reject, and the requester sees no elder data until approved. Elder registration and link requests are family-only routes. Admin manages KB and scam patterns only.
 
 ## Invariants
 

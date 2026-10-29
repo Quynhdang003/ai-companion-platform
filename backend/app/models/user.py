@@ -29,3 +29,6 @@ class User(TimestampMixin, Base):
         ),
         server_default=UserRole.FAMILY.value,
     )
+    # Synced from the Clerk webhook; null until it arrives for lazily created users.
+    display_name: Mapped[str | None] = mapped_column(Text)
+    email: Mapped[str | None] = mapped_column(Text)
