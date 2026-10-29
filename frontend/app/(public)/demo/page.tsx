@@ -20,7 +20,7 @@ export default function DemoPage() {
           </span>
           <h1 className="max-w-[880px] text-[clamp(36px,4.8vw,58px)] leading-[1.1] font-extrabold tracking-[-0.025em]">
             Nghe thử trợ lý{" "}
-            <span className="text-gradient">trò chuyện với ông bà</span>
+            <span className="text-gradient">trò chuyện với người thân</span>
           </h1>
           <p className="max-w-[640px] text-[19px] text-muted-foreground">
             Chọn một kịch bản bên dưới để xem trợ lý nói gì và hệ thống làm gì
@@ -80,7 +80,7 @@ export default function DemoPage() {
       </section>
 
       <CtaBanner
-        title="Sẵn sàng cho ông bà dùng thật?"
+        title="Sẵn sàng cho người thân dùng thật?"
         description="Đăng ký chỉ với họ tên và số điện thoại."
         href="/dashboard/elders/new"
         action="Đăng ký cho người thân"

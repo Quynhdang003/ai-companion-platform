@@ -18,7 +18,8 @@ export default function NewElderPage() {
       <div>
         <h1 className="text-2xl font-semibold">Đăng ký người thân</h1>
         <p className="mt-1 text-muted-foreground">
-          Ông bà không cần cài ứng dụng hay tạo tài khoản, chỉ cần gọi điện.
+          Người thân của bạn không cần cài ứng dụng hay tạo tài khoản, chỉ cần
+          gọi điện.
         </p>
       </div>
       <RegisterElderForm />

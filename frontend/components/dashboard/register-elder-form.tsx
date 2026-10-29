@@ -141,8 +141,8 @@ export function RegisterElderForm() {
             {...register("phone")}
           />
           <FieldDescription>
-            Số ông bà hay dùng để gọi (di động hoặc số bàn). Trợ lý nhận ra ông
-            bà qua số này.
+            Số người thân hay dùng để gọi (di động hoặc số bàn). Trợ lý nhận ra
+            người thân qua số này.
           </FieldDescription>
           <FieldError errors={[errors.phone]} />
         </Field>
@@ -162,12 +162,15 @@ export function RegisterElderForm() {
             className={inputClass}
             {...register("preferred_name")}
           />
-          <FieldDescription>Trợ lý sẽ chào ông bà bằng tên này.</FieldDescription>
+          <FieldDescription>
+            Trợ lý sẽ chào người thân bằng tên này.
+          </FieldDescription>
           <FieldError errors={[errors.preferred_name]} />
         </Field>
 
         <p className="text-sm text-muted-foreground">
-          Lần đầu ông bà gọi, trợ lý sẽ xin phép trước khi bắt đầu trò chuyện.
+          Lần đầu người thân gọi, trợ lý sẽ xin phép trước khi bắt đầu trò
+          chuyện.
         </p>
 
         <Button

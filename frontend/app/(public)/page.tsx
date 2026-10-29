@@ -6,7 +6,7 @@ import { PublicHero } from "@/components/public/public-hero";
 const steps = [
   {
     icon: Phone,
-    title: "Ông bà gọi điện",
+    title: "Người thân của bạn gọi điện",
     description:
       "Gọi vào số tổng đài từ bất kỳ điện thoại nào. Trợ lý nhận ra số đã đăng ký và chào đúng tên.",
   },
@@ -20,7 +20,7 @@ const steps = [
     icon: Bell,
     title: "Người thân được báo tin",
     description:
-      "Thấy dấu hiệu lừa đảo, trợ lý cảnh báo ông bà ngay và nhắn Telegram cho gia đình. Sau mỗi cuộc gọi có bản tóm tắt để xem lại.",
+      "Thấy dấu hiệu lừa đảo, trợ lý cảnh báo người thân của bạn ngay và nhắn Telegram cho gia đình. Sau mỗi cuộc gọi có bản tóm tắt để xem lại.",
   },
 ];
 
@@ -36,9 +36,9 @@ export default function Home() {
             Một cuộc gọi, <span className="text-gradient">có người bầu bạn</span>
           </h1>
           <p className="max-w-[640px] text-[19px] text-muted-foreground">
-            Ông bà không cần điện thoại thông minh hay ứng dụng, chỉ cần gọi
-            điện. Trợ lý trò chuyện, nhớ chuyện cũ, giúp việc hằng ngày và cảnh
-            báo khi có dấu hiệu lừa đảo.
+            Người thân của bạn không cần điện thoại thông minh hay ứng dụng, chỉ
+            cần gọi điện. Trợ lý trò chuyện, nhớ chuyện cũ, giúp việc hằng ngày
+            và cảnh báo khi có dấu hiệu lừa đảo.
           </p>
           <div className="mt-2 flex flex-wrap justify-center gap-3">
             <Link
@@ -84,8 +84,8 @@ export default function Home() {
       </section>
 
       <CtaBanner
-        title="Đăng ký cho ông bà ngay hôm nay"
-        description="Chỉ cần họ tên và số điện thoại. Lần gọi đầu tiên, trợ lý sẽ xin phép ông bà trước khi bắt đầu."
+        title="Đăng ký cho người thân ngay hôm nay"
+        description="Chỉ cần họ tên và số điện thoại. Lần gọi đầu tiên, trợ lý sẽ xin phép người thân của bạn trước khi bắt đầu."
         href="/dashboard/elders/new"
         action="Đăng ký cho người thân"
       />

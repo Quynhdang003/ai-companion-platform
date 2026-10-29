@@ -78,7 +78,7 @@ async function DashboardContent() {
           <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-border bg-card p-6">
             <p>Bạn chưa đăng ký người thân nào.</p>
             <p className="text-muted-foreground">
-              Chỉ cần họ tên và số điện thoại ông bà hay dùng để gọi.
+              Chỉ cần họ tên và số điện thoại người thân hay dùng để gọi.
             </p>
             <Link href="/dashboard/elders/new" className={primaryLink}>
               Đăng ký người thân đầu tiên

@@ -28,7 +28,7 @@ export function ElderCard({ elder }: { elder: Elder }) {
             ? "Bạn là người quản lý"
             : "Bạn được xem thông tin"}
           {elder.status === "PENDING_VERIFICATION" &&
-            " · Trợ lý sẽ xin phép khi ông bà gọi lần đầu."}
+            " · Trợ lý sẽ xin phép khi người thân gọi lần đầu."}
         </p>
       </CardContent>
     </Card>
