@@ -1,13 +1,22 @@
-"""Elder registration by family members (flow A)."""
+"""Elder registration by family members and activation on the first call (flow A)."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Elder, ElderFamily, ElderLinkRequest, FamilyRole, User
+from app.models import (
+    CallSession,
+    Elder,
+    ElderFamily,
+    ElderLinkRequest,
+    ElderStatus,
+    FamilyRole,
+    User,
+)
 
 
 class RegistrationOutcome(StrEnum):
@@ -74,3 +83,42 @@ async def list_for_user(db: AsyncSession, user: User) -> list[tuple[Elder, Famil
         .order_by(ElderFamily.created_at)
     )
     return list(result.all())
+
+
+class ActivationOutcome(StrEnum):
+    ACTIVATED = "activated"
+    ALREADY_ACTIVE = "already_active"
+
+
+@dataclass(frozen=True)
+class Activation:
+    outcome: ActivationOutcome
+    elder: Elder
+
+
+class ElderUnavailableError(Exception):
+    """The call belongs to no registered elder (unknown or blocked caller)."""
+
+
+async def activate(db: AsyncSession, call: CallSession) -> Activation:
+    """Record the consent given on `call`: PENDING_VERIFICATION → ACTIVE with `consent_at`.
+
+    Calling it again is a no-op, so the agent may confirm twice.
+    """
+    if call.elder_id is None:
+        raise ElderUnavailableError
+    elder = await db.scalar(
+        select(Elder)
+        .where(Elder.id == call.elder_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if elder is None or elder.status is ElderStatus.BLOCKED:
+        raise ElderUnavailableError
+    if elder.status is ElderStatus.ACTIVE:
+        return Activation(ActivationOutcome.ALREADY_ACTIVE, elder)
+
+    elder.status = ElderStatus.ACTIVE
+    elder.consent_at = datetime.now(UTC)
+    await db.flush()
+    return Activation(ActivationOutcome.ACTIVATED, elder)
