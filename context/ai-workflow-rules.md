@@ -38,7 +38,7 @@ Don't edit unless explicitly asked:
 
 ## Keep docs in sync
 
-Update the relevant context file when implementation changes: architecture or boundaries, storage model, conventions, feature scope.
+Update the relevant context file when implementation changes: architecture or boundaries, storage model, conventions, feature scope. API routes, status or error codes → `api-contracts.md`.
 
 ## Progress tracker format
 
@@ -54,4 +54,5 @@ Update the relevant context file when implementation changes: architecture or bo
 1. Current unit works end-to-end within its defined scope.
 2. No invariant in `architecture.md` is violated.
 3. `progress-tracker.md` reflects completed work.
-4. Checks pass: `pytest` + `ruff check` (backend, ride-sim); `npm run build` + `npm run lint` (frontend).
+4. `api-contracts.md` matches any route added or changed in this unit.
+5. Checks pass: `pytest` + `ruff check` (backend, ride-sim); `npm run build` + `npm run lint` (frontend).

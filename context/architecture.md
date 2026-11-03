@@ -11,10 +11,10 @@
 | Embedding | Gemini Embedding, fixed dims | Memory + KB vectors |
 | Backend | Python + FastAPI, SQLAlchemy 2 + Alembic, APScheduler | Business API, hooks, tools, jobs |
 | Ride Simulator | FastAPI + OSRM + Nominatim/Photon (or Goong) | Simulated ride provider over REST |
-| Database | PostgreSQL + pgvector (HNSW), `unaccent`, `pg_trgm` | Data, memory, vectors, hybrid search |
-| Frontend | Next.js + React + TypeScript | Family + admin website |
-| UI | Tailwind CSS + shadcn/ui | Components, styling |
-| Auth | Clerk | Web login, roles `family`/`admin` |
+| Database | PostgreSQL 17 + pgvector (HNSW), `unaccent`, `pg_trgm` | Data, memory, vectors, hybrid search |
+| Frontend | Next.js 16 (App Router) + React 19 + TypeScript | Family + admin website |
+| UI | Tailwind CSS v4 (CSS-first config in `globals.css`, no `tailwind.config`) + shadcn/ui | Components, styling |
+| Auth | Clerk Core 3 (`@clerk/nextjs` 7) | Web login, roles `family`/`admin` |
 | Notification | Email + Telegram Bot | Reports, urgent scam alerts |
 | Deploy | Vercel + VPS Docker Compose | Hosting |
 

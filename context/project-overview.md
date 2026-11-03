@@ -24,12 +24,12 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 
 ### B – Elderly user calls
 
-1. Call reaches Dograh → pre-call hook `POST /hooks/pre-call` `{"event": "call_inbound", "call_inbound": {agent_id, workflow_run_id, from_number, to_number}}` + API key (`Authorization: Bearer`).
+1. Call reaches Dograh → pre-call hook `POST /hooks/pre-call` with the caller's number + API key (`Authorization: Bearer`).
 2. Backend verifies key, normalizes number, looks up `elders`, creates `call_session` (with `workflow_run_id`) + `session_token`.
-3. Returns `{"initial_context": {...}}` with flat keys (prompts use `{{key | fallback}}`); always `session_token`, `caller_status`, `is_registered`:
-   - `ACTIVE` (`caller_status: active`): `full_name`, `preferred_name` (falls back to full name); memory summary and frequent places added by the MEM units.
-   - `PENDING_VERIFICATION` (`pending_consent`): `registered_by` (owner's name, if synced). AI asks consent → tool `POST /tools/confirm-activation`.
-   - Unknown/blocked (`unknown`): `is_registered: false`, generic greeting, no personal data; the session is linked to no elder.
+3. Returns the call's `initial_context` (prompts use `{{key | fallback}}`). Exact request/response and `initial_context` keys: see `api-contracts.md`.
+   - `ACTIVE`: greeted by name; memory summary and frequent places added by the MEM units.
+   - `PENDING_VERIFICATION`: told who registered the number; AI asks consent → tool `POST /tools/confirm-activation`.
+   - Unknown/blocked: generic greeting, no personal data; the session is linked to no elder.
 4. All HTTP tools send `session_token` via Preset Parameter `{{initial_context.session_token}}`; backend resolves `elder_id`.
 5. Scam Risk Engine scores each turn; high risk → AI warns + Telegram alert to family.
 6. End-of-call webhook (transcript, linked via `workflow_run_id`) → async memory extraction + call summary.
