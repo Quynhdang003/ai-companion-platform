@@ -42,17 +42,23 @@
 - Check auth (JWT or API key) and ownership before any data mutation.
 - Consistent response shape: success returns data; errors return `{ "error": { "code", "message" } }` with proper HTTP status.
 - Dograh tool responses: short, speakable Vietnamese `message` + structured fields.
+- New or changed routes (path, body, status codes, error codes) must be documented in `api-contracts.md`.
 
 ## Data and storage
 
 - Metadata and business data in PostgreSQL.
 - Recordings stay in Dograh; store URLs only.
-- Phone numbers normalized to E.164 at the boundary.
+- UUID primary keys with `server_default=gen_random_uuid()`.
+- Enum-like columns as `VARCHAR` + named `CHECK` (SQLAlchemy `Enum(..., native_enum=False, create_constraint=True)`), not native PG enums.
+- Constraint and index names follow the naming convention in `app/models/base.py` (`pk_`, `uq_`, `ix_`, `ck_`, `fk_`); migrations reference them by name.
+- Rows owned by an elder or user use `ON DELETE CASCADE`; audit references (e.g. `decided_by`) use `SET NULL`.
+- Phone numbers normalized to E.164 at the boundary, always via `normalize_vn_phone` (`app/services/identity/phone.py`; VN mobile + landline only); `elders.phone_e164` also has an E.164 `CHECK`.
 - Store tokens hashed; never log tokens, phone numbers or transcripts in plain logs.
 
 ## File organization
 
 - `backend/app/api/` — routes (`web/`, `dograh/`, `webhooks/`).
+- `backend/app/core/` — `config` (settings), `db` (async engine, `get_db()` / `DbSession`), `auth` (Clerk JWT, `CurrentUser`, `require_role`, `FamilyUser`), `dograh_auth` (`require_dograh_key`), `errors` (`AppError`, error shape).
 - `backend/app/services/` — business modules.
 - `backend/app/models/`, `backend/app/schemas/` — ORM models, Pydantic schemas.
 - `backend/app/llm/` — Gemini client, prompts, output schemas.

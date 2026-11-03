@@ -12,14 +12,16 @@ Update after every meaningful implementation change.
 
 ## Completed
 
-- `INF-01`: skeletons for `backend/` (FastAPI, uv, empty packages, pydantic-settings config, async Alembic init, no revisions), `ride-sim/` (FastAPI, uv), `frontend/` (Next.js 16 App Router, TS strict, Tailwind v4, shadcn/ui + sonner, Clerk/zod/RHF installed but not wired), `infra/docker-compose.yml` (PostgreSQL 17 + pgvector only), `dograh/` placeholder. Only `GET /health` on both Python services, one test each.
-- `DB-01`: core schema `users`, `elders`, `elder_family`, `call_sessions` (models in `backend/app/models/`, migration `2799efe1c415`). UUID PKs (`gen_random_uuid()`), enum-like columns as `VARCHAR` + named `CHECK`, E.164 `CHECK` on `elders.phone_e164`, `ON DELETE CASCADE` from elders/users, `call_sessions.elder_id` nullable for unknown callers. `app/core/db.py` provides async engine + `get_db()`. Tests run against a real Postgres test DB.
-- `AUTH-01` (backend): Clerk JWT verification via JWKS (`app/core/auth.py`: RS256, `iss`, `azp`, `CurrentUser`, `require_role`), user sync webhook `POST /webhooks/clerk` (Svix-verified; `user.created/updated` upsert role from `publicMetadata.role`, `user.deleted` removes user + family links), lazy user creation on first request, `GET /api/me`, global error shape `{"error": {"code", "message"}}` (`app/core/errors.py`), CORS. Tested with locally signed JWTs/webhooks, and verified live against the Clerk dev instance (webhooks via ngrok, real session tokens: 16/16 checks).
-- `AUTH-02` (frontend): `ClerkProvider` (vi-VN via `@clerk/localizations`, accent color/font from tokens), `proxy.ts` requiring sign-in for `/dashboard/*` and `/admin/*`, `/sign-in` + `/sign-up` pages, typed API client (`lib/api/`: `createApiClient`, `getServerApi()`, Zod schemas, `ApiError`), `/dashboard` placeholder showing the role from `GET /api/me`, `/admin` placeholder whose layout checks the role before rendering (`instant = false`; non-admins get a 307 to `/dashboard`), shared `SiteHeader` with `UserButton`. Also wired the `ui-context.md` tokens into `globals.css` and switched the font to Be Vietnam Pro (`lang="vi"`). Verified against the Clerk dev instance + real backend: signed-out → 307 to `/sign-in` for all protected routes; family → `/dashboard` shows "Gia đình", `/admin` → 307 `/dashboard`; admin → `/admin` renders, `/dashboard` shows "Quản trị viên". Browser sign-in form and widget styling not checked by hand yet.
-- `UI-01` (frontend): public pages from the `Demo.dc.html` design, brand renamed to "Touch the Light". Route group `app/(public)/` (URLs unchanged) holding `/` (landing: hero, how it works, CTA), new `/demo` (hotline + web-call cards, 3 scenario tabs with keyboard ←/→, risk bar, CTA) and `/sign-in`, `/sign-up`; shared `PublicHero`/`PublicHeader`/`PublicNav`/`PublicFooter`/`CtaBanner` in `components/public/`, `BrandLogo` also used by the dashboard `SiteHeader`. Derived color/gradient/shadow tokens + utilities in `globals.css` (documented in `ui-context.md`). Header account area streams in `<Suspense>` (`/` and `/demo` are partial prerender). `NEXT_PUBLIC_DEMO_PHONE_NUMBER` (unset → "Sắp ra mắt"). Verified with `npm run lint` + `npm run build` and headless Chrome at 1440px / 390px: all pages render, no horizontal overflow, no console errors, tabs switch by click and keyboard, signed-out `/dashboard` still 307 → `/sign-in`. Signed-in header state ("Trang quản lý" + `UserButton`) not checked in a browser yet.
-- `REG-01a` (backend): elder registration + link requests with owner approval. `normalize_vn_phone` (`app/services/identity/phone.py`, `phonenumbers`, VN mobile + landline only; reuse in ID-01). Migration `8c9a52a4bb0d`: `elder_link_requests` (partial unique index: one pending request per requester and elder) + `users.display_name`/`email`, synced from the Clerk webhook. Family-only routes (`FamilyUser`): `POST /api/elders` (201 created / 202 link_requested without elder data / 409 `already_linked` / 422 `invalid_phone`), `GET /api/elders`, `GET /api/link-requests/incoming|outgoing`, `POST /api/link-requests/{id}/approve|reject` (owner only, else 404; 409 `already_decided`; approve → `viewer`). 77 tests pass (42 new), ruff clean, migration applied to the dev DB.
-- `REG-01b` (frontend): `/dashboard/elders/new` (RHF + Zod form: full name, phone, optional preferred name; backend `invalid_phone`/`already_linked` shown under the phone field; link-requested result panel), `/dashboard` lists elders (status + role), incoming requests with approve/reject (toast + `router.refresh()`), and sent requests; admins get a pointer to `/admin`. Client-side API binding `useApi()` (`lib/api/use-api.ts`); client methods + Zod schemas for the new routes; `<Toaster theme="light">` in the dashboard layout; shadcn `button`/`input`/`label`/`field`/`badge`/`card` added via CLI. Public "Đăng ký cho người thân" CTAs now go to the form (signed-out → `/sign-in` → back). Verified with lint + build and end to end (prod build + real backend + Clerk dev): two test users signed in via Clerk sign-in tokens in headless Chrome, names/emails synced via locally delivered signed webhooks; invalid number, register, duplicate → link request (elder name hidden), owner sees requester name/email and approves, requester sees elder as viewer, re-register → `already_linked`, signed-out CTA redirect. Test users and data removed afterwards.
-- `ID-01` (backend): Dograh pre-call hook `POST /hooks/pre-call` and tool `POST /tools/confirm-activation`, both behind `require_dograh_key` (`app/core/dograh_auth.py`, Bearer `DOGRAH_API_KEY`; unset → 500 `dograh_not_configured`). `call_sessions` service: `secrets.token_urlsafe(32)` tokens, SHA-256 hash stored, TTL from `SESSION_TOKEN_TTL_MINUTES` (120), upsert on `workflow_run_id` (retry rotates the token), `resolve()` rejects unknown/expired. `pre_call.build_context` (one indexed lookup, no LLM): `initial_context` keys `session_token`, `caller_status` (`active`/`pending_consent`/`unknown`), `is_registered`, `full_name` + `preferred_name` (active only), `registered_by` (pending only); unset keys omitted. Unknown, blocked and invalid/empty numbers → session without `elder_id`. `elders.activate`: PENDING → ACTIVE + `consent_at` (row lock; repeat → `already_active`); tool errors 401 `invalid_session`, 404 `not_registered` with Vietnamese messages. No migration (DB-01 columns suffice). 107 tests pass (30 new), ruff clean.
+| ID | Summary | Verified |
+|---|---|---|
+| `INF-01` | Skeleton backend, ride-sim, frontend; compose PostgreSQL + pgvector | `/health` tests |
+| `DB-01` | Core schema: users, elders, elder_family, call_sessions (`2799efe1c415`) | pytest on real PG |
+| `AUTH-01` | Clerk JWT via JWKS, user sync webhook, `GET /api/me`, error shape | Live vs Clerk dev |
+| `AUTH-02` | ClerkProvider vi-VN, `proxy.ts`, typed API client, role-gated `/admin` | Live vs Clerk dev |
+| `UI-01` | Public pages `/`, `/demo`, sign-in/up (Touch the Light branding) | Headless Chrome 1440/390 |
+| `REG-01a` | Elder registration + link requests with owner approval (`8c9a52a4bb0d`) | 77 tests |
+| `REG-01b` | Dashboard: register form, elder list, approve/reject requests | E2E, 2 Clerk users |
+| `ID-01` | Pre-call hook, `session_token`, `confirm-activation` tool | 107 tests |
 
 ## In progress
 
@@ -27,11 +29,11 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- Dograh service in `infra/docker-compose.yml` + basic workflow in `dograh/`: pre-call fetch mode `Always` → backend `/hooks/pre-call` (Bearer credential), greeting with `{{preferred_name | bác}}` per `caller_status`, consent prompt, HTTP tool `confirm_activation` with Preset Parameter `session_token = {{initial_context.session_token}}`; web call test with `caller_number` set in workflow Context Variables. Check that the backend is reachable from the Dograh container (e.g. `host.docker.internal`).
-- Add the OSRM service to `infra/docker-compose.yml` with the ride tasks (deferred from `INF-01`).
-- Web call simulation page: point `/demo`'s "Mở trang gọi thử" at it (now `/dashboard`).
-- Public "Tầm nhìn" / "Tài nguyên" pages from the design are hidden (no design files yet).
-- Rename the Clerk application to "Touch the Light" in the Clerk Dashboard (the sign-in card still says "My Application").
+- `DG-01a`: Dograh service in `infra/docker-compose.yml`; verify the Dograh container reaches the backend (e.g. `host.docker.internal` `/health`).
+- `DG-01b`: basic workflow in `dograh/`: pre-call hook mode `Always` → `/hooks/pre-call` (Bearer); greeting per `caller_status` with `{{preferred_name | bác}}`; consent prompt → HTTP tool `confirm_activation` (Preset Parameter `session_token = {{initial_context.session_token}}`); web call tests with `caller_number` for active, pending → `ACTIVE`, unknown.
+- `CHK-01`: manual browser check of Clerk sign-in form styling (AUTH-02) and signed-in public header (UI-01).
+- `OPS-01`: remove the orphaned admin user row (`user_3LE…`) from the dev DB; rename the Clerk application to "Touch the Light" (manual, Clerk Dashboard).
+- Later (no ID yet): OSRM service with the ride units; web call simulation page (point `/demo` "Mở trang gọi thử" at it); public "Tầm nhìn" / "Tài nguyên" pages (waiting for design).
 
 ## Open questions
 
@@ -44,8 +46,6 @@ Update after every meaningful implementation change.
 - Public demo hotline number for `/demo` (depends on real telephony), and whether the footer should name the university.
 - Orphaned elders: if an owner deletes their account, the elder stays but pending link requests have nobody to approve them.
 - Link request notifications: owners only see requests on the dashboard until the Notification Service exists.
-- A 202 on registration tells the requester the number is already registered (no personal data); accepted as inherent to the spec.
-- Clerk deprecates `createRouteMatcher` (removed in its next major) in favor of auth checks in each page/layout. Kept for now: it gives clean 307s before rendering, and protected data is guarded by the backend anyway. Revisit when upgrading Clerk's major version.
 
 ## Architecture decisions
 
@@ -56,6 +56,8 @@ Update after every meaningful implementation change.
 - Hybrid search in PostgreSQL: no extra infra, tolerant to STT errors.
 - Telegram for urgent alerts, Email for reports: email too slow for scam alerts.
 - Scam check split: real-time in-call + async post-call memory extraction.
+- Registration of a taken number returns 202 `link_requested`: tells the requester the number is registered (no personal data); accepted as inherent to the spec.
+- Keep Clerk `createRouteMatcher` in `proxy.ts` (deprecated, removed in Clerk's next major): clean 307s before rendering, and the backend guards data anyway. Revisit on the Clerk major upgrade.
 
 ## Session notes
 
@@ -69,7 +71,4 @@ Update after every meaningful implementation change.
 
 - Signed-in checks without a browser: Clerk Backend API (`CLERK_SECRET_KEY`) `sessions.createSession({userId})` → `sessions.getToken(id)` → request the frontend with `Authorization: Bearer <jwt>` (`clerkMiddleware` accepts header tokens); revoke the session after. Users created in Clerk get role `family` in the DB until the webhook delivers `user.updated`, so admin tests need the webhook (ngrok) or a manual DB role update. Dev-only: a non-admin opening `/admin` logs "Could not validate `instant`" (the layout redirect stops the child page from rendering); harmless.
 
-- Data: as of 2026-10-27 the Clerk dev instance has no users, but the DB still has one `admin` row (`user_3LE…`) from AUTH-01 whose `user.deleted` webhook never arrived.
-
-- Dograh notes: pre-call hook 10s timeout, web calls need hook mode `Always` + `caller_number` context variable; greeting needs fallback for missing variables; verify `{{initial_context.*}}` rendering in tool test panel.
-- Dograh contract (docs.dograh.com, checked 2026-10-29): pre-call request body `{"event": "call_inbound", "call_inbound": {agent_id, workflow_run_id, from_number, to_number}}` + `Idempotency-Key` header; credential types API key / bearer / basic / custom header. Response `{"initial_context": {...}}` (top level or inside `call_inbound`; legacy alias `dynamic_variables`); a non-2xx, bad JSON or timeout just means no extra context. Prompts read `{{key}}` / `{{key | fallback}}`, nested via dot notation; HTTP tool Preset Parameters use `{{initial_context.key}}` (body for POST, query for GET); `initial_context.workflow_run_id` is reserved. Tools get `status_code` + parsed body as `data`, ≥ 400 → `status: "error"`.
+- Dograh: pre-call hook times out after 10s; web calls need hook mode `Always` + a `caller_number` context variable; greetings need a fallback for missing variables; check `{{initial_context.*}}` rendering in the tool test panel.

@@ -2,7 +2,7 @@
 
 ## Approach
 
-Spec-driven, small increments. Context files (`project-overview.md`, `architecture.md`, `code-standards.md`, `ui-context.md`, `progress-tracker.md`) define what to build, how, and current status. Always implement from them; never guess or invent behavior.
+Spec-driven, small increments. Context files (`project-overview.md`, `architecture.md`, `api-contracts.md`, `code-standards.md`, `ui-context.md`, `progress-tracker.md`) define what to build, how, and current status. Always implement from them; never guess or invent behavior.
 
 ## Scope rules
 
@@ -39,6 +39,15 @@ Don't edit unless explicitly asked:
 ## Keep docs in sync
 
 Update the relevant context file when implementation changes: architecture or boundaries, storage model, conventions, feature scope.
+
+## Progress tracker format
+
+- `Completed`: one table row per unit — ID, summary (≤ 15 words), how verified. No file lists or implementation details.
+- Implementation details go in the commit message.
+- Conventions later units must reuse → `code-standards.md`; boundaries/invariants → `architecture.md`; routes/status codes → `api-contracts.md`.
+- Unverified items go to `Next`, not `Completed`.
+- Every `Next` item has a backlog ID.
+- Session notes hold environment gotchas only; prune stale ones at the end of each week.
 
 ## Before moving to the next unit
 
