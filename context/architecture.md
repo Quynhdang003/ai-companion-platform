@@ -4,7 +4,7 @@
 
 | Layer | Technology | Role |
 |---|---|---|
-| Voice | Dograh (self-host) | Calls, pre-call hook, HTTP tools, end-of-call webhook |
+| Voice | Dograh 1.50.0 (self-host, Docker images) | Calls, pre-call hook, HTTP tools, end-of-call webhook |
 | STT/TTS | Azure Speech or Google Chirp (vi-VN), configured in Dograh | Vietnamese speech |
 | Conversation LLM | Gemini Flash (in Dograh) | Real-time dialogue, tool calling |
 | Analysis LLM | Gemini, JSON output + Pydantic | Scam classification, memory extraction |
@@ -27,12 +27,12 @@
 - `ride-sim/` — Standalone ride simulator; backend accesses it only via `RideProvider` adapter over HTTP.
 - `frontend/` — Next.js website; calls backend REST only, never the DB.
 - `dograh/` — Exported workflows, prompts, tool definitions (docs/config, not code).
-- `infra/` — Docker Compose, OSRM/geocoder data setup.
+- `infra/` — Docker Compose (app PostgreSQL; Dograh UI, API and its own Postgres/Redis/MinIO), OSRM/geocoder data setup. Dograh services sit on a separate `dograh` network: they can't reach the app database and talk to the backend only over HTTP (`host.docker.internal`, pre-call hook + tools). Host ports: backend 8000, ride-sim 8001, frontend 3000, app PostgreSQL 5432, Dograh UI 3010 / API 8010 / MinIO 9000-9001 (Dograh ports on localhost only).
 
 ## Storage model
 
 - **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs + summaries, memories (text + vector), KB chunks (text + vector + tsvector), scam patterns, scam events, reminders, ride bookings.
-- **Dograh**: recordings and raw transcripts (backend stores URLs + processed transcript).
+- **Dograh**: recordings and raw transcripts (backend stores URLs + processed transcript), in Dograh's own Postgres + MinIO; never shared with the app database.
 - **Clerk**: credentials and sessions only; business data stays in PostgreSQL.
 - **Ride Simulator DB/state**: drivers, trips (separate from backend DB).
 

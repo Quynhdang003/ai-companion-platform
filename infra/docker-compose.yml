@@ -18,5 +18,146 @@ services:
       timeout: 5s
       retries: 10
 
+  # Dograh voice platform (self-host), adapted from the upstream local stack
+  # (github.com/dograh-hq/dograh docker-compose.yaml, release 1.50.0). It keeps its own
+  # Postgres, Redis and MinIO on the `dograh` network, separate from the app database.
+  # Only the UI, API and MinIO are published, on localhost; the API moves to 8010
+  # because the backend runs on 8000.
+
+  dograh-postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: postgres
+      # Baked into the volume on first init; changing it later needs ALTER USER.
+      POSTGRES_PASSWORD: ${DOGRAH_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    volumes:
+      - dograh-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - dograh
+
+  dograh-redis:
+    image: redis:7
+    command: --requirepass ${DOGRAH_REDIS_PASSWORD:-redissecret}
+    volumes:
+      - dograh-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${DOGRAH_REDIS_PASSWORD:-redissecret}", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+    networks:
+      - dograh
+
+  dograh-minio:
+    # Dograh's community MinIO build; upstream MinIO no longer publishes images.
+    image: dograhai/minio:2026.09.22
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${DOGRAH_MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${DOGRAH_MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+    ports:
+      # Browsers load recordings from here (MINIO_PUBLIC_ENDPOINT).
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - dograh-minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dograh
+
+  dograh-api:
+    # Also runs the workers that send pre-call hooks and HTTP tool calls to the backend.
+    image: dograhai/dograh-api:1.50.0
+    environment:
+      ENVIRONMENT: local
+      LOG_LEVEL: INFO
+      # Set to false after creating the first account.
+      ENABLE_SIGNUP: ${DOGRAH_ENABLE_SIGNUP:-true}
+      # Empty for local dev; set for a VPS deploy (public origin for webhook/embed links).
+      PUBLIC_BASE_URL: ${DOGRAH_PUBLIC_BASE_URL:-}
+      PUBLIC_HOST: ${DOGRAH_PUBLIC_HOST:-}
+      # URL Dograh builds its own links from. Dograh's default (localhost:8000) is our backend.
+      BACKEND_API_ENDPOINT: ${DOGRAH_BACKEND_API_ENDPOINT:-http://localhost:${DOGRAH_API_PORT:-8010}}
+      DATABASE_URL: postgresql+asyncpg://postgres:${DOGRAH_POSTGRES_PASSWORD:-postgres}@dograh-postgres:5432/postgres
+      REDIS_URL: redis://:${DOGRAH_REDIS_PASSWORD:-redissecret}@dograh-redis:6379
+      ENABLE_AWS_S3: "false"
+      MINIO_ENDPOINT: dograh-minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${DOGRAH_MINIO_PUBLIC_ENDPOINT:-}
+      MINIO_ACCESS_KEY: ${DOGRAH_MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${DOGRAH_MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: voice-audio
+      MINIO_SECURE: "false"
+      FASTAPI_WORKERS: "1"
+      FORWARDED_ALLOW_IPS: "*"
+      OSS_JWT_SECRET: ${DOGRAH_JWT_SECRET:?set DOGRAH_JWT_SECRET in infra/.env (see .env.example)}
+      ENABLE_TELEMETRY: ${DOGRAH_ENABLE_TELEMETRY:-false}
+      POSTHOG_API_KEY: phc_ItizB1dP6yv7ZYobbcqrpxTdbomDA8hJFSEmAMdYvIr
+      POSTHOG_HOST: https://us.i.posthog.com
+    ports:
+      - "127.0.0.1:${DOGRAH_API_PORT:-8010}:8000"
+    # The backend runs on the host; host-gateway makes this name resolve on Linux too.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      dograh-postgres:
+        condition: service_healthy
+      dograh-redis:
+        condition: service_healthy
+      dograh-minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8000/api/v1/health'').read()"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - dograh
+
+  dograh-ui:
+    image: dograhai/dograh-ui:1.50.0
+    environment:
+      HOSTNAME: 0.0.0.0
+      # Server-side only: the browser calls the UI origin, which proxies /api/v1 here.
+      BACKEND_URL: http://dograh-api:8000
+      NODE_ENV: oss
+      ENABLE_TELEMETRY: ${DOGRAH_ENABLE_TELEMETRY:-false}
+      POSTHOG_KEY: phc_ItizB1dP6yv7ZYobbcqrpxTdbomDA8hJFSEmAMdYvIr
+      POSTHOG_HOST: https://us.posthog.com
+    ports:
+      - "127.0.0.1:${DOGRAH_UI_PORT:-3010}:3010"
+    depends_on:
+      dograh-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3010 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - dograh
+
 volumes:
   pgdata:
+  dograh-pgdata:
+  dograh-redis:
+  dograh-minio:
+
+networks:
+  dograh:

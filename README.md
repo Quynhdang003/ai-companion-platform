@@ -8,7 +8,7 @@ The AI chats with long-term memory, answers info questions (weather, news, daily
 | `backend/` | FastAPI business API (uv, Python 3.11+), SQLAlchemy + Alembic |
 | `ride-sim/` | Standalone ride simulator service (FastAPI, uv) |
 | `frontend/` | Next.js family + admin website |
-| `infra/` | Docker Compose (PostgreSQL + pgvector) |
+| `infra/` | Docker Compose (PostgreSQL + pgvector, self-hosted Dograh) |
 | `dograh/` | Dograh workflows, prompts, tool definitions |
 | `context/` | Project specs (architecture, standards, progress) |
 
@@ -40,11 +40,30 @@ cd frontend && npm install
 
 Users are also created (as `family`) on their first authenticated request, so sign-in works even before the webhook arrives.
 
+### Dograh (voice platform)
+
+`infra/docker-compose.yml` runs Dograh `1.50.0` (UI, API, plus its own Postgres, Redis and MinIO, separate from the app database).
+
+1. `infra/.env`: set `DOGRAH_JWT_SECRET` (required, otherwise every `docker compose` command fails):
+   `python -c "import secrets; print(secrets.token_hex(32))"`. Other `DOGRAH_*` variables are optional (see `infra/.env.example`).
+2. Start the stack (images take ~3 GB on disk) and open the UI at http://localhost:3010. Create the first account, then set `DOGRAH_ENABLE_SIGNUP=false` and run `up -d` again (`restart` does not apply `.env` changes).
+3. Dograh reaches the backend on the host at `http://host.docker.internal:8000`. On Linux, run the backend with `--host 0.0.0.0` (see Session notes in `context/progress-tracker.md`).
+
+| Service | URL (host) |
+|---|---|
+| Dograh UI | http://localhost:3010 |
+| Dograh API | http://localhost:8010 (`/api/v1/health`) |
+| Dograh MinIO | http://localhost:9000 (console 9001) |
+
 ## Run
 
 ```bash
-# Database
+# PostgreSQL + Dograh (or `up -d postgres` for the database only)
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+
+# Backend reachable from Dograh (inside the dograh-api container)
+docker compose -f infra/docker-compose.yml --env-file infra/.env exec dograh-api \
+  python -c "import urllib.request as u; print(u.urlopen('http://host.docker.internal:8000/health').read())"
 
 # Backend    -> http://localhost:8000/health
 cd backend && uv run fastapi dev app/main.py --port 8000

@@ -22,6 +22,7 @@ Update after every meaningful implementation change.
 | `REG-01a` | Elder registration + link requests with owner approval (`8c9a52a4bb0d`) | 77 tests |
 | `REG-01b` | Dashboard: register form, elder list, approve/reject requests | E2E, 2 Clerk users |
 | `ID-01` | Pre-call hook, `session_token`, `confirm-activation` tool | 107 tests |
+| `DG-01a` | Self-hosted Dograh 1.50.0 in compose, own Postgres/Redis/MinIO, backend reachable from it | Healthchecks; container → host `/health` 200 |
 
 ## In progress
 
@@ -29,8 +30,7 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- `DG-01a`: Dograh service in `infra/docker-compose.yml`; verify the Dograh container reaches the backend (e.g. `host.docker.internal` `/health`).
-- `DG-01b`: basic workflow in `dograh/`: pre-call hook mode `Always` → `/hooks/pre-call` (Bearer); greeting per `caller_status` with `{{preferred_name | bác}}`; consent prompt → HTTP tool `confirm_activation` (Preset Parameter `session_token = {{initial_context.session_token}}`); web call tests with `caller_number` for active, pending → `ACTIVE`, unknown.
+- `DG-01b`: basic workflow in `dograh/`: pre-call hook mode `Always` → `http://host.docker.internal:8000/hooks/pre-call` (Bearer); greeting per `caller_status` with `{{preferred_name | bác}}`; consent prompt → HTTP tool `confirm_activation` (Preset Parameter `session_token = {{initial_context.session_token}}`); web call tests with `caller_number` for active, pending → `ACTIVE`, unknown.
 - `CHK-01`: manual browser check of Clerk sign-in form styling (AUTH-02) and signed-in public header (UI-01).
 - `OPS-01`: remove the orphaned admin user row (`user_3LE…`) from the dev DB; rename the Clerk application to "Touch the Light" (manual, Clerk Dashboard).
 
@@ -77,5 +77,7 @@ Update after every meaningful implementation change.
 - Signed-in checks without a browser: Clerk Backend API (`CLERK_SECRET_KEY`) `sessions.createSession({userId})` → `sessions.getToken(id)` → request the frontend with `Authorization: Bearer <jwt>` (`clerkMiddleware` accepts header tokens); revoke the session after. Users created in Clerk get role `family` in the DB until the webhook delivers `user.updated`, so admin tests need the webhook (ngrok) or a manual DB role update. Dev-only: a non-admin opening `/admin` logs "Could not validate `instant`" (the layout redirect stops the child page from rendering); harmless.
 
 - Browser E2E (used in REG-01b): run a prod frontend build against the real backend + Clerk dev. Sign test users in via Clerk sign-in tokens in headless Chrome. Sync their names/emails by delivering signed Clerk webhooks locally (`user.created`/`user.updated` signed with `CLERK_WEBHOOK_SECRET` the way `svix_headers` in `backend/tests/conftest.py` does, POSTed to `/webhooks/clerk`). Delete the test users and their data afterwards.
+
+- Dograh infra: `DOGRAH_JWT_SECRET` missing from `infra/.env` makes every `docker compose` command fail, even `up -d postgres`. The `dograh-api` image has no `curl`/`wget`; check from inside it with `python -c "import urllib.request ..."`. Docker Desktop forwards `host.docker.internal` to the host's loopback, so `fastapi dev` (127.0.0.1) is reachable; on Linux `host-gateway` is the bridge IP, so the backend must listen on `0.0.0.0` (firewall port 8000) — not yet tested on Linux. `Error connecting to cloudflared` warnings in `dograh-api` logs are expected: the upstream quick tunnel (public URL for telephony webhooks) is left out. This machine also has an old standalone `dograh` compose project (containers `dograh-*` + `minio`, volumes `dograh_*`); unused, and its ports clash if started.
 
 - Dograh: pre-call hook times out after 10s; web calls need hook mode `Always` + a `caller_number` context variable; greetings need a fallback for missing variables; check `{{initial_context.*}}` rendering in the tool test panel.
