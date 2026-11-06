@@ -51,9 +51,19 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
 
 ## Dograh platform contract
 
-Checked against docs.dograh.com on 2026-10-29.
+Checked against docs.dograh.com on 2026-10-29. Verified against the Dograh `1.50.0` source and live text-chat runs on 2026-11-03 (DG-01b); where the docs differ, the verified behavior is written here.
 
-- Pre-call request body `{"event": "call_inbound", "call_inbound": {agent_id, workflow_run_id, from_number, to_number}}` + `Idempotency-Key` header; credential types API key / bearer / basic / custom header.
+- Pre-call request body `{"event": "call_inbound", "call_inbound": {agent_id, workflow_run_id, from_number, to_number}}` + `Idempotency-Key: dograh-pre-call-<run id>` header; credential types API key / bearer / basic / custom header.
+  - `agent_id` and `workflow_run_id` are integers.
+  - Web and text-chat calls take `from_number` / `to_number` from the `caller_number` / `called_number` context variables, and send `""` when they are unset.
+  - Text-chat sessions also run the hook, but only in mode `Always`, and once per session.
+  - Timeout 10s. An unreachable backend fails fast, and the call starts without the context.
 - Response `{"initial_context": {...}}` (top level or inside `call_inbound`; legacy alias `dynamic_variables`); a non-2xx, bad JSON or timeout just means no extra context.
-- Prompts read `{{key}}` / `{{key | fallback}}`, nested via dot notation; HTTP tool Preset Parameters use `{{initial_context.key}}` (body for POST, query for GET); `initial_context.workflow_run_id` is reserved.
-- Tools get `status_code` + parsed body as `data`; ≥ 400 → `status: "error"`.
+  - The keys are merged flat into the run's `initial_context`, which Dograh stores with the run, `session_token` included.
+  - Reserved keys are dropped: `workflow_run_id`, `call_id`, `provider`, `runtime_configuration`, `model_overrides`, `model_configuration_snapshot`, `model_configuration_overrides`.
+  - `greeting_override` replaces the Start Call greeting (unused).
+- Prompts and greetings read `{{key}}` / `{{key | fallback}}` (legacy `{{key | fallback:text}}`), nested via dot notation. A missing key without fallback renders as an empty string (the docs say the raw placeholder is spoken).
+- HTTP tool Preset Parameters use `{{initial_context.key}}` (body for POST, query for GET); `initial_context.workflow_run_id` is reserved.
+  - Use the `initial_context.` prefix: a bare `{{key}}` can be shadowed by LLM-gathered variables.
+  - The tool test panel sends preset values as typed, without rendering templates.
+- Tools get `status_code` + parsed body as `data`; ≥ 400 → `status: "error"`. Default tool timeout 5000 ms.

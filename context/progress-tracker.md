@@ -23,6 +23,7 @@ Update after every meaningful implementation change.
 | `REG-01b` | Dashboard: register form, elder list, approve/reject requests | E2E, 2 Clerk users |
 | `ID-01` | Pre-call hook, `session_token`, `confirm-activation` tool | 107 tests |
 | `DG-01a` | Self-hosted Dograh 1.50.0 in compose, own Postgres/Redis/MinIO, backend reachable from it | Healthchecks; container → host `/health` 200 |
+| `DG-01b` | Dograh identity + consent workflow, `confirm_activation` tool, exports in `dograh/` | Text chat (Gemini): active, pending → ACTIVE, unknown |
 
 ## In progress
 
@@ -30,7 +31,7 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- `DG-01b`: basic workflow in `dograh/`: pre-call hook mode `Always` → `http://host.docker.internal:8000/hooks/pre-call` (Bearer); greeting per `caller_status` with `{{preferred_name | bác}}`; consent prompt → HTTP tool `confirm_activation` (Preset Parameter `session_token = {{initial_context.session_token}}`); web call tests with `caller_number` for active, pending → `ACTIVE`, unknown.
+- `DG-01c`: Azure Speech vi-VN STT/TTS (voice `vi-VN-HoaiMyNeural`) on the DG-01b workflow; run the voice web-call checklist in `dograh/README.md` (ACTIVE greeting within ~2s, consent by voice, unknown, backend down).
 - `CHK-01`: manual browser check of Clerk sign-in form styling (AUTH-02) and signed-in public header (UI-01).
 - `OPS-01`: remove the orphaned admin user row (`user_3LE…`) from the dev DB; rename the Clerk application to "Touch the Light" (manual, Clerk Dashboard).
 
@@ -80,4 +81,8 @@ Update after every meaningful implementation change.
 
 - Dograh infra: `DOGRAH_JWT_SECRET` missing from `infra/.env` makes every `docker compose` command fail, even `up -d postgres`. The `dograh-api` image has no `curl`/`wget`; check from inside it with `python -c "import urllib.request ..."`. Docker Desktop forwards `host.docker.internal` to the host's loopback, so `fastapi dev` (127.0.0.1) is reachable; on Linux `host-gateway` is the bridge IP, so the backend must listen on `0.0.0.0` (firewall port 8000) — not yet tested on Linux. `Error connecting to cloudflared` warnings in `dograh-api` logs are expected: the upstream quick tunnel (public URL for telephony webhooks) is left out. This machine also has an old standalone `dograh` compose project (containers `dograh-*` + `minio`, volumes `dograh_*`); unused, and its ports clash if started.
 
-- Dograh: pre-call hook times out after 10s; web calls need hook mode `Always` + a `caller_number` context variable; greetings need a fallback for missing variables; check `{{initial_context.*}}` rendering in the tool test panel.
+- Dograh: pre-call hook times out after 10s; web calls need hook mode `Always` + a `caller_number` context variable; greetings need a fallback for missing variables. The tool test panel sends preset values as typed (no `{{initial_context.*}}` rendering): paste a real `session_token` from the hook.
+
+- Dograh workflow: signing up on the self-host calls Dograh's cloud (managed service key, billing account, SIP), and the org default routes LLM/STT/TTS/embeddings through that managed connection. The DG-01b workflow overrides only the LLM (Gemini). Any saved change, Context Variables included, creates a draft: publish it. Edge labels become LLM function names (non-ASCII → `_`), so use ASCII `snake_case` labels. Text chat speaks only the greeting, and the prompt's first turn waits for the caller. Gemini free tier is 20 requests/day per model (each caller turn ≥ 1), enough for about one round of the text-chat tests.
+
+- Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` to print Vietnamese.

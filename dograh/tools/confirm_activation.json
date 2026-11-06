@@ -1,0 +1,26 @@
+{
+  "name": "confirm_activation",
+  "description": "Kích hoạt dịch vụ cho số điện thoại đang gọi. CHỈ gọi khi trạng thái người gọi là pending_consent VÀ người gọi vừa nói rõ là đồng ý (ví dụ: \"có\", \"đồng ý\", \"được\"). Không gọi khi người gọi còn do dự, từ chối, hỏi lại hoặc chưa được hỏi. Công cụ không cần tham số nào.",
+  "category": "http_api",
+  "definition": {
+    "schema_version": 1,
+    "type": "http_api",
+    "messages": [],
+    "config": {
+      "method": "POST",
+      "url": "http://host.docker.internal:8000/tools/confirm-activation",
+      "credential_uuid": "<CREDENTIAL_UUID>",
+      "parameters": [],
+      "preset_parameters": [
+        {
+          "name": "session_token",
+          "type": "string",
+          "value_template": "{{initial_context.session_token}}",
+          "required": true
+        }
+      ],
+      "timeout_ms": 5000,
+      "body_format": "json"
+    }
+  }
+}
