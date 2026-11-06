@@ -37,6 +37,26 @@
           "add_global_prompt": true,
           "prompt": "Cảm ơn người gọi và chào tạm biệt bằng một câu ngắn, ấm áp."
         }
+      },
+      {
+        "id": "call_ended",
+        "type": "webhook",
+        "position": { "x": 700, "y": 0 },
+        "data": {
+          "name": "Báo backend khi kết thúc",
+          "enabled": true,
+          "http_method": "POST",
+          "endpoint_url": "http://host.docker.internal:8000/hooks/call-ended",
+          "credential_uuid": "<CREDENTIAL_UUID>",
+          "custom_headers": [],
+          "payload_template": {
+            "workflow_run_id": "{{workflow_run_id}}",
+            "duration_seconds": "{{cost_info.call_duration_seconds}}",
+            "disposition": "{{gathered_context.call_disposition}}",
+            "transcript_url": "{{transcript_url}}",
+            "recording_url": "{{recording_url}}"
+          }
+        }
       }
     ],
     "edges": [
