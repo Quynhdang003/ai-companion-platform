@@ -27,7 +27,8 @@ class CallLog(TimestampMixin, Base):
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
     # Dograh's call disposition, as sent (e.g. "completed").
     disposition: Mapped[str | None] = mapped_column(Text)
-    # [{"role": "elder" | "assistant", "text": ...}] in call order.
-    transcript: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    # [{"role": "elder" | "assistant", "text": ...}] in call order. None is SQL NULL (not JSON
+    # null), so `transcript IS NULL` means "no content kept".
+    transcript: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB(none_as_null=True))
     # Dograh public download link (anyone holding it can download the recording).
     recording_url: Mapped[str | None] = mapped_column(Text)

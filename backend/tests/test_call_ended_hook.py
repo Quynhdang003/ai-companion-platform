@@ -4,7 +4,7 @@ from typing import Any
 import httpx
 import pytest
 from httpx import AsyncClient, Response
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
@@ -86,6 +86,11 @@ async def call_logs(session: AsyncSession) -> list[CallLog]:
     return list((await session.scalars(select(CallLog))).all())
 
 
+async def transcript_is_sql_null(session: AsyncSession) -> bool:
+    """SQL NULL, not JSON null: both load as None in Python."""
+    return await session.scalar(text("SELECT transcript IS NULL FROM call_logs"))
+
+
 async def test_active_caller_gets_transcript_and_recording(
     client: AsyncClient, session: AsyncSession, transcripts: FakeTranscripts
 ) -> None:
@@ -136,7 +141,7 @@ async def test_caller_without_consent_gets_metadata_only(
     assert response.status_code == 200
     [log] = await call_logs(session)
     assert log.duration_seconds == 43
-    assert log.transcript is None
+    assert await transcript_is_sql_null(session)
     assert log.recording_url is None
     assert transcripts.urls == []
 
@@ -178,12 +183,8 @@ async def test_empty_template_values_count_as_missing(
 
     assert response.status_code == 200
     [log] = await call_logs(session)
-    assert (log.duration_seconds, log.disposition, log.transcript, log.recording_url) == (
-        None,
-        None,
-        None,
-        None,
-    )
+    assert (log.duration_seconds, log.disposition, log.recording_url) == (None, None, None)
+    assert await transcript_is_sql_null(session)
     assert transcripts.urls == []
 
 
