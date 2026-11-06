@@ -20,7 +20,7 @@ const steps = [
     icon: Bell,
     title: "Người thân được báo tin",
     description:
-      "Thấy dấu hiệu lừa đảo, trợ lý cảnh báo người thân của bạn ngay và nhắn Telegram cho gia đình. Sau mỗi cuộc gọi có bản tóm tắt để xem lại.",
+      "Thấy dấu hiệu lừa đảo, trợ lý cảnh báo người thân của bạn ngay và nhắn Telegram cho gia đình. Gia đình xem được người thân gọi lúc nào, bao lâu; nội dung trò chuyện luôn được giữ kín.",
   },
 ];
 

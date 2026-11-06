@@ -24,6 +24,7 @@ Update after every meaningful implementation change.
 | `ID-01` | Pre-call hook, `session_token`, `confirm-activation` tool | 107 tests |
 | `DG-01a` | Self-hosted Dograh 1.50.0 in compose, own Postgres/Redis/MinIO, backend reachable from it | Healthchecks; container → host `/health` 200 |
 | `DG-01b` | Dograh identity + consent workflow, `confirm_activation` tool, exports in `dograh/` | Text chat (Gemini): active, pending → ACTIVE, unknown |
+| `UI-02` | Public copy: family sees call time/duration only, no call summaries | Lint + build; `/`, `/demo` at 1440/390 |
 
 ## In progress
 

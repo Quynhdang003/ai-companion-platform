@@ -61,7 +61,8 @@ const scenarios: Scenario[] = [
       },
       {
         tone: "brand",
-        content: "Sau cuộc gọi: lưu ghi nhớ mới, gửi tóm tắt cho người thân.",
+        content:
+          "Sau cuộc gọi: lưu ghi nhớ mới để lần sau hỏi han; gia đình chỉ thấy thời gian cuộc gọi.",
       },
     ],
   },
