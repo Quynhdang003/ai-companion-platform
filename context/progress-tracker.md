@@ -31,7 +31,7 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- `DG-01c`: Azure Speech vi-VN STT/TTS (voice `vi-VN-HoaiMyNeural`) on the DG-01b workflow; run the voice web-call checklist in `dograh/README.md` (ACTIVE greeting within ~2s, consent by voice, unknown, backend down).
+- `DG-01c`: Azure Speech vi-VN STT/TTS (voice `vi-VN-HoaiMyNeural`) on the DG-01b workflow; run the voice web-call checklist in `dograh/README.md` (ACTIVE greeting within ~2s, consent by voice, unknown, backend down). The consent prompt should say family can't read the conversation.
 - `CHK-01`: manual browser check of Clerk sign-in form styling (AUTH-02) and signed-in public header (UI-01).
 - `OPS-01`: remove the orphaned admin user row (`user_3LE…`) from the dev DB; rename the Clerk application to "Touch the Light" (manual, Clerk Dashboard).
 
@@ -63,6 +63,7 @@ Update after every meaningful implementation change.
 - Telegram for urgent alerts, Email for reports: email too slow for scam alerts.
 - Scam check split: real-time in-call + async post-call memory extraction.
 - Registration of a taken number returns 202 `link_requested`: tells the requester the number is registered (no personal data); accepted as inherent to the spec.
+- Family sees call metadata + scam alerts only, never transcripts or memories; no per-call summaries: elder privacy; content stays for memory and scam analysis.
 - Keep Clerk `createRouteMatcher` in `proxy.ts` (deprecated, removed in Clerk's next major): clean 307s before rendering, and the backend guards data anyway. Revisit on the Clerk major upgrade.
 
 ## Session notes

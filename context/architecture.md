@@ -31,8 +31,9 @@
 
 ## Storage model
 
-- **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs + summaries, memories (text + vector), KB chunks (text + vector + tsvector), scam patterns, scam events, reminders, ride bookings.
+- **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs (metadata + processed transcript), memories (text + vector), KB chunks (text + vector + tsvector), scam patterns, scam events, reminders, ride bookings.
 - **Dograh**: recordings and raw transcripts (backend stores URLs + processed transcript), in Dograh's own Postgres + MinIO; never shared with the app database.
+- Conversation content (transcripts, memories) is read only by backend jobs and the AI (pre-call hook, tools); no web route returns it.
 - **Clerk**: credentials and sessions only; business data stays in PostgreSQL.
 - **Ride Simulator DB/state**: drivers, trips (separate from backend DB).
 
@@ -43,15 +44,16 @@
 - Elderly have no account: identified by `from_number` (E.164) in pre-call hook; must be `ACTIVE` (consent given) to access personal data.
 - Dograh calls `/hooks/*` and `/tools/*` with `Authorization: Bearer <DOGRAH_API_KEY>` (compared in constant time).
 - Each call gets a `call_session` with an expiring `session_token` (`secrets.token_urlsafe(32)`, SHA-256 hash stored, TTL `SESSION_TOKEN_TTL_MINUTES`, default 120); all Dograh tools resolve `elder_id` from it. One session per `workflow_run_id`: a retried pre-call hook rotates the token. Unknown and blocked callers, and invalid or empty caller numbers, get a session with no `elder_id`, so tools can't reach any elder's data. Dograh keeps the raw token in its own run record (`initial_context`), but tool calls also need the API key, so the token alone grants nothing.
-- Family access to elder data only via `elder_family` link (`owner` manages, `viewer` reads). Registering a taken number creates an `elder_link_requests` row instead (at most one pending request per requester and elder); only the owner can approve (requester becomes `viewer`) or reject, and the requester sees no elder data until approved. Elder registration and link requests are family-only routes. Admin manages KB and scam patterns only.
+- Family access to elder data only via `elder_family` link (`owner` manages, `viewer` reads); for calls, family sees metadata and scam alerts only. Registering a taken number creates an `elder_link_requests` row instead (at most one pending request per requester and elder); only the owner can approve (requester becomes `viewer`) or reject, and the requester sees no elder data until approved. Elder registration and link requests are family-only routes. Admin manages KB and scam patterns only.
 
 ## Invariants
 
 1. The LLM never supplies `elder_id`, phone numbers or user identifiers; identity comes only from `session_token`.
 2. Dograh-facing endpoints require API key; web endpoints require Clerk JWT + `elder_family` check.
 3. Pre-call hook stays < 500ms and always returns valid JSON; no LLM calls in it.
-4. Post-call work (memory extraction, summaries, embeddings) runs async, never blocks webhook response.
+4. Post-call work (memory extraction, scam analysis, embeddings) runs async, never blocks webhook response.
 5. Sensitive tools (`book_ride`, `cancel_ride`, `contact_family`, profile changes) execute only after explicit verbal confirmation.
 6. All LLM structured output is validated with Pydantic before storage or action.
 7. Phone numbers are stored only in E.164; one `elder` per number.
 8. Embedding model and dimensions are fixed; changing them requires full re-index.
+9. Web routes never return transcripts or memories; family alerts carry scam type, risk level and time only.

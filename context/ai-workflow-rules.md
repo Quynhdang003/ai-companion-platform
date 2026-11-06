@@ -15,7 +15,7 @@ Spec-driven, small increments. Context files (`project-overview.md`, `architectu
 Split a step if it mixes:
 
 - Backend logic and frontend UI.
-- Real-time call path (pre-call hook, HTTP tools) and async post-call jobs (memory extraction, summaries).
+- Real-time call path (pre-call hook, HTTP tools) and async post-call jobs (memory extraction, scam analysis).
 - Several unrelated API routes or modules.
 - Behavior not clearly defined in context files.
 
