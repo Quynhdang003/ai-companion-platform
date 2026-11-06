@@ -49,6 +49,17 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
   - Errors: 401 `invalid_session` (unknown or expired token), 404 `not_registered` (unknown or blocked caller).
   - `message` (success and errors) is short speakable Vietnamese for the agent.
 
+- `POST /hooks/call-ended` `{workflow_run_id, duration_seconds?, disposition?, transcript_url?, recording_url?}` → 200 `{received: true}`. Dograh's end-of-call Webhook node; values are strings, `""` = not sent, `duration_seconds` is rounded to whole seconds.
+  - Upserts one `call_logs` row for the run's `call_session` (Dograh retries deliveries).
+  - A run without a call session (its pre-call hook never reached us) is ignored: 200, nothing stored.
+  - Transcript and `recording_url` are stored only if the session's elder is `ACTIVE` at that point (includes consent given during the call). Others get metadata only, and the transcript isn't downloaded.
+  - The backend downloads the transcript from `transcript_url`, which must start with `DOGRAH_BASE_URL`.
+  - Errors:
+    - 401 `unauthorized`.
+    - 422 `validation_error`.
+    - 422 `invalid_transcript_url` (outside `DOGRAH_BASE_URL`).
+    - 503 `transcript_unavailable` (download failed or not a Dograh transcript): nothing stored, Dograh retries.
+
 ## Dograh platform contract
 
 Checked against docs.dograh.com on 2026-10-29. Verified against the Dograh `1.50.0` source and live text-chat runs on 2026-11-03 (DG-01b); where the docs differ, the verified behavior is written here.
@@ -67,3 +78,15 @@ Checked against docs.dograh.com on 2026-10-29. Verified against the Dograh `1.50
   - Use the `initial_context.` prefix: a bare `{{key}}` can be shadowed by LLM-gathered variables.
   - The tool test panel sends preset values as typed, without rendering templates.
 - Tools get `status_code` + parsed body as `data`; ≥ 400 → `status: "error"`. Default tool timeout 5000 ms.
+- End-of-call **Webhook node** (verified in the `dograh-v1.50.0` source, 2026-11-06):
+  - **Node:** `type: "webhook"`, not connected by edges. Fields: `endpoint_url`, `http_method`, `credential_uuid` (same auth header as the pre-call hook), `custom_headers`, `payload_template`.
+  - **When:** sent by the `process_workflow_completion` worker after the run ends. Voice calls and text chats upload the transcript first, so `transcript_url` is set when there was any message. A text chat ends with `POST /workflow/{id}/text-chat/sessions/{run_id}/end` `{expected_revision}` (or inactivity).
+  - **Payload:** a template rendered with the same renderer as prompts. Every placeholder becomes a string (missing → `""`).
+    - Variables: `workflow_run_id`, `call_time` (run created), `cost_info.call_duration_seconds`, `gathered_context.*` (incl. `call_disposition`), `initial_context.*`, `recording_url`, `transcript_url`.
+    - The transcript text itself isn't available.
+  - **Links:** `{BACKEND_API_ENDPOINT}/api/v1/public/download/workflow/{token}/{transcript|recording}`, with no auth (the token is the capability). They redirect 302 to a MinIO URL signed for 1h, on `MINIO_PUBLIC_ENDPOINT` (fallback `http://localhost:9000`).
+  - **Transcript file:** UTF-8 text, one line per final message: `[<ISO time>] user: …` / `[<ISO time>] assistant: …`. Multi-line messages continue unprefixed; no tool or system lines.
+  - **Delivery:**
+    - Headers `X-Dograh-Delivery-Id`, `X-Dograh-Workflow-Run-Id`, `X-Dograh-Delivery-Attempt`; no signature.
+    - Timeout 30s, up to 5 attempts with backoff 30s → 60s → 120s → 240s.
+    - Retried on 408/425/429/500/502/503/504 and network errors; any other non-2xx is dead-lettered at once.

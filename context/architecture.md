@@ -27,11 +27,11 @@
 - `ride-sim/` — Standalone ride simulator; backend accesses it only via `RideProvider` adapter over HTTP.
 - `frontend/` — Next.js website; calls backend REST only, never the DB.
 - `dograh/` — Exported workflows, prompts, tool definitions (docs/config, not code).
-- `infra/` — Docker Compose (app PostgreSQL; Dograh UI, API and its own Postgres/Redis/MinIO), OSRM/geocoder data setup. Dograh services sit on a separate `dograh` network: they can't reach the app database and talk to the backend only over HTTP (`host.docker.internal`, pre-call hook + tools). Host ports: backend 8000, ride-sim 8001, frontend 3000, app PostgreSQL 5432, Dograh UI 3010 / API 8010 / MinIO 9000-9001 (Dograh ports on localhost only).
+- `infra/` — Docker Compose (app PostgreSQL; Dograh UI, API and its own Postgres/Redis/MinIO), OSRM/geocoder data setup. Dograh services sit on a separate `dograh` network: they can't reach the app database and talk to the backend only over HTTP (`host.docker.internal`: pre-call hook, tools, end-of-call webhook). The backend calls Dograh only to download transcripts from its public download links (`DOGRAH_BASE_URL`, Dograh's `BACKEND_API_ENDPOINT`). Host ports: backend 8000, ride-sim 8001, frontend 3000, app PostgreSQL 5432, Dograh UI 3010 / API 8010 / MinIO 9000-9001 (Dograh ports on localhost only).
 
 ## Storage model
 
-- **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs (metadata + processed transcript), memories (text + vector), KB chunks (text + vector + tsvector), scam patterns, scam events, reminders, ride bookings.
+- **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs (one per call session: duration, disposition, processed transcript + recording link for consented callers), memories (text + vector), KB chunks (text + vector + tsvector), scam patterns, scam events, reminders, ride bookings.
 - **Dograh**: recordings and raw transcripts (backend stores URLs + processed transcript), in Dograh's own Postgres + MinIO; never shared with the app database.
 - Conversation content (transcripts, memories) is read only by backend jobs and the AI (pre-call hook, tools); no web route returns it.
 - **Clerk**: credentials and sessions only; business data stays in PostgreSQL.

@@ -25,6 +25,7 @@ Update after every meaningful implementation change.
 | `DG-01a` | Self-hosted Dograh 1.50.0 in compose, own Postgres/Redis/MinIO, backend reachable from it | Healthchecks; container → host `/health` 200 |
 | `DG-01b` | Dograh identity + consent workflow, `confirm_activation` tool, exports in `dograh/` | Text chat (Gemini): active, pending → ACTIVE, unknown |
 | `UI-02` | Public copy: family sees call time/duration only, no call summaries | Lint + build; `/`, `/demo` at 1440/390 |
+| `CALL-01a` | End-of-call webhook `/hooks/call-ended` → `call_logs` (`87d572f79894`); transcript for consented callers only | 134 tests; real Dograh transcript format |
 
 ## In progress
 
@@ -32,6 +33,7 @@ Update after every meaningful implementation change.
 
 ## Next
 
+- `CALL-01b`: Webhook node on the DG-01b workflow → `http://host.docker.internal:8000/hooks/call-ended` (payload template in the CALL-01 plan), re-export `dograh/`, E2E by text chat: ACTIVE → transcript stored, unknown → metadata only.
 - `DG-01c`: Azure Speech vi-VN STT/TTS (voice `vi-VN-HoaiMyNeural`) on the DG-01b workflow; run the voice web-call checklist in `dograh/README.md` (ACTIVE greeting within ~2s, consent by voice, unknown, backend down). The consent prompt should say family can't read the conversation.
 - `CHK-01`: manual browser check of Clerk sign-in form styling (AUTH-02) and signed-in public header (UI-01).
 - `OPS-01`: remove the orphaned admin user row (`user_3LE…`) from the dev DB; rename the Clerk application to "Touch the Light" (manual, Clerk Dashboard).
