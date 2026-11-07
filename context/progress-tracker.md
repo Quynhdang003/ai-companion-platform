@@ -28,12 +28,13 @@ Update after every meaningful implementation change.
 | `CALL-01a` | End-of-call webhook `/hooks/call-ended` → `call_logs` (`87d572f79894`); transcript for consented callers only | 134 tests; real Dograh transcript format |
 | `CALL-01b` | Dograh Webhook node → `/hooks/call-ended` (workflow v13), export in `dograh/` | Text chat: ACTIVE → transcript, unknown → metadata only; deliveries `succeeded` |
 | `LLM-01` | Gemini client (`app/llm/`): JSON output validated by Pydantic, 768-dim embeddings, fake for tests | Mocked-HTTP tests; live smoke (`pytest -m live`) vs Gemini |
+| `MEM-01` | `memories` (`45022702e0a4`) + post-call extraction job (APScheduler, Gemini → Pydantic → embed) | Tests; voice call → 3 memories 26 s after the call ends; category fix checked by a rolled-back re-run |
 | `MEM-02a` | Pre-call hook adds `memory_summary` + `frequent_places` for ACTIVE callers (no LLM) | 174 tests; hook 9–13 ms warm (105 ms cold) with 100 memories |
+| `MEM-02b` | Dograh prompt uses the memory keys (workflow v14) | Criterion 4 by voice: call 2 recalled the back pain and Bạch Mai |
 
 ## In progress
 
-- `MEM-01`: `memories` table (`45022702e0a4`) + post-call extraction job (APScheduler, Gemini JSON → Pydantic → embed). Code + tests done; live check (a call as an ACTIVE elder → `memories` rows) still to run.
-- `MEM-02b`: Dograh prompt uses the memory keys (saved as draft v14, matches `dograh/`; not yet published). Two-call recall test (criterion 4) still to run.
+- None.
 
 ## Next
 

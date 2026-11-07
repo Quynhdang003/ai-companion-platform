@@ -21,6 +21,18 @@ upcoming events.
 - Never keep phone numbers, bank account or card numbers, OTP codes, passwords, ID numbers, or \
 money someone asked the elder to send.
 
+Categories:
+- person: a family member, friend or carer; subject = their name or relation.
+- place: somewhere the elder lives or goes (home, hospital, market, pagoda, a child's house). \
+One memory per place: subject = the place's name, content = what the elder does there, with \
+the address if given.
+- health: conditions, symptoms, medicines, care needs.
+- preference: likes, dislikes, how the elder likes to be addressed.
+- routine: something the elder does regularly.
+- event: something dated or upcoming (an appointment, a visit), with its date.
+- One fact can need several memories: an upcoming check-up at the hospital the elder usually \
+goes to is an "event" for the check-up and a "place" for the hospital.
+
 How to write each memory:
 - content: one short Vietnamese sentence in the third person about the elder, e.g. \
 "Bà hay đi khám ở Bệnh viện Bạch Mai vào sáng thứ Ba."

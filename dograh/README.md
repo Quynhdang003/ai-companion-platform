@@ -4,7 +4,7 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
 
 | Path | What |
 |---|---|
-| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
+| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b; published as v14): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
 | `tools/confirm_activation.json` | HTTP tool body for `POST /api/v1/tools/`. |
 | `prompts/*.md` | Readable copies of the prompts in the workflow JSON (regenerate when the JSON changes). |
 
@@ -38,7 +38,7 @@ In the Dograh UI (http://localhost:3010):
    - Start Call → pre-call data fetch, greeting, prompt, tools.
    - Webhook node → URL, method, credential, payload.
    - Settings → **Context Variables**: `caller_number` (+ empty `called_number`). Dograh sends these as `from_number` / `to_number` for web and text test calls.
-   - **Model configuration** (workflow override, as published in version 13):
+   - **Model configuration** (workflow override, as published in version 14):
      - LLM, STT and TTS use the Dograh-managed connection (`Dograh`).
      - LLM model `default`; STT language `vi`; TTS voice `dg_voice_f6111af0943623935399` ("Ngoc - Diligent Resolver", Vietnamese).
      - Voice calls run on this config since DG-01c (Azure Speech dropped). DG-01b's text-chat tests used LLM = `Gemini` (`gemini-3.5-flash`).
@@ -124,6 +124,11 @@ FROM call_logs l JOIN call_sessions s ON s.id = l.call_session_id ORDER BY l.cre
 -- Dograh DB: docker exec -i ai-companion-dograh-postgres-1 psql -U postgres -d postgres
 SELECT workflow_run_id, status, attempt_count, last_status_code FROM webhook_deliveries ORDER BY id DESC;
 ```
+
+**Memory across calls** (MEM-02b, criterion 4; backend running with `GEMINI_API_KEY`):
+1. Call as an ACTIVE elder and mention something durable, e.g. "tuần sau bác đi khám ở Bệnh viện Bạch Mai". Hang up.
+2. Within ~30 s the memory job sets the call's `call_logs.memory_status = done` and adds `memories` rows (`SELECT category, subject, content FROM memories`).
+3. Call again: the run's `initial_context` has `memory_summary` (and `frequent_places` once a place is known). Ask "con có nhớ bác hay đi khám ở đâu không?": the agent answers from them.
 
 **Tool test panel**: it sends preset values exactly as typed and does **not** render `{{initial_context.*}}`. A literal template gets 401 `invalid_session`. To test, call the pre-call hook for a test number and paste the returned `session_token`. Live calls render the preset from the call's `initial_context`.
 
