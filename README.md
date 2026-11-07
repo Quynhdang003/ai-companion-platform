@@ -68,6 +68,9 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env exec dograh-api
 # Backend    -> http://localhost:8000/health
 cd backend && uv run fastapi dev app/main.py --port 8000
 
+# Sample knowledge-base documents (backend/data/kb, needs GEMINI_API_KEY; safe to re-run)
+cd backend && uv run python -m scripts.seed_kb
+
 # Ride simulator -> http://localhost:8001/health
 cd ride-sim && uv run fastapi dev app/main.py --port 8001
 

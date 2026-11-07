@@ -65,6 +65,8 @@
 - Phone numbers normalized to E.164 at the boundary, always via `normalize_vn_phone` (`app/services/identity/phone.py`; VN mobile + landline only); `elders.phone_e164` also has an E.164 `CHECK`.
 - Store tokens hashed; never log tokens, phone numbers or transcripts in plain logs.
 - Nullable JSONB columns use `JSONB(none_as_null=True)`: by default SQLAlchemy writes Python `None` as JSON `null`, which `IS NULL` doesn't match.
+- Accent-free text search: generated columns and indexes call `immutable_unaccent()` (from the KB migration; `unaccent` itself isn't IMMUTABLE). In Python, `fold()` (`app/services/rag/search.py`) strips diacritics the same way.
+- Hybrid search (`app/services/rag/search.py`): each ranking keeps only relevant rows (full-text word coverage, trigram threshold, max vector distance), then `rrf_merge` fuses them; the query embedding has a short timeout and falls back to lexical search. New searchable corpora (scam patterns) reuse `query_words`, `fold` and `rrf_merge`, and get thresholds calibrated with real embeddings.
 
 ## File organization
 
@@ -74,5 +76,6 @@
 - `backend/app/models/`, `backend/app/schemas/` — ORM models, Pydantic schemas.
 - `backend/app/llm/` — Gemini client, prompts, output schemas.
 - `backend/tests/` — pytest tests.
+- `backend/scripts/` — maintenance scripts, run as `uv run python -m scripts.<name>`; `backend/data/` — sample data (KB documents).
 - `ride-sim/app/` — simulator routes, pricing, dispatch, state machine.
 - `frontend/app/` — routes; `frontend/components/` — feature components; `frontend/lib/` — API client, utils.

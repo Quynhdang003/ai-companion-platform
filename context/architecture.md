@@ -31,7 +31,7 @@
 
 ## Storage model
 
-- **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs (one per call session: duration, disposition, processed transcript + recording link for consented callers, memory extraction status), memories (per elder: category, subject, one short Vietnamese sentence, importance, mention count, vector; extracted from transcripts by a background job), KB chunks (text + vector + tsvector), scam patterns, scam events, reminders, ride bookings.
+- **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs (one per call session: duration, disposition, processed transcript + recording link for consented callers, memory extraction status), memories (per elder: category, subject, one short Vietnamese sentence, importance, mention count, vector; extracted from transcripts by a background job), KB documents (full text kept for re-indexing) and their chunks (≤ 800 chars, accent-free tsvector, trigram index, vector), scam patterns, scam events, reminders, ride bookings.
 - **Dograh**: recordings and raw transcripts (backend stores URLs + processed transcript), in Dograh's own Postgres + MinIO; never shared with the app database.
 - Conversation content (transcripts, memories) is read only by backend jobs and the AI (pre-call hook, tools); no web route returns it.
 - **Clerk**: credentials and sessions only; business data stays in PostgreSQL.
