@@ -14,7 +14,11 @@
 - Routes stay thin: validate → call service → return. Logic lives in `services/`.
 - External services (Gemini, ride provider, notification channels) behind interfaces (`RideProvider`, `NotificationChannel`, LLM client) for mocking in tests.
 - Async DB access with SQLAlchemy 2; schema changes only via Alembic migrations.
-- `pytest` tests for every service; mock external APIs.
+- `pytest` tests for every service; mock external APIs. Tests that call a real external API are marked `live` and skipped by default (`uv run pytest -m live` runs them).
+- LLM calls go through `LLMClient` (`app/llm/client.py`, `get_llm_client()`); services take it as a parameter, tests pass `FakeLLMClient` (`tests/fakes.py`).
+  - Structured output: `generate_json(prompt, Schema)` returns the validated Pydantic model.
+  - Embeddings: `embed(texts, task="document" | "query")`, always `EMBEDDING_DIMS` (`app/llm/embeddings.py`) long.
+  - Errors: `LLMError`; `LLMRateLimitedError` (429, retry later); `LLMNotConfiguredError` (no `GEMINI_API_KEY`).
 
 ## TypeScript
 

@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     # downloads transcripts only from links under it.
     dograh_base_url: str = "http://localhost:8010"
 
+    # Gemini (Google AI Studio) for analysis (memory extraction, scam) and embeddings. Calls
+    # themselves use Dograh's own models. Unset key: LLM calls fail with LLMNotConfiguredError.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_embedding_model: str = "gemini-embedding-001"
+    llm_timeout_seconds: float = 30.0
+
 
 @lru_cache
 def get_settings() -> Settings:

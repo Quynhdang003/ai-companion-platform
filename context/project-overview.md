@@ -66,7 +66,7 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 | STT/TTS | Dograh-managed, vi-VN (voice "Ngoc"), configured in Dograh |
 | Conversation LLM | Dograh-managed (model `default`), configured in Dograh |
 | Analysis LLM | Gemini, JSON structured output + Pydantic |
-| Embedding | Gemini Embedding, fixed dims (768 or 1536) |
+| Embedding | Gemini Embedding (`gemini-embedding-001`), 768 dims |
 | Backend | Python + FastAPI, SQLAlchemy 2 + Alembic, APScheduler |
 | Database | PostgreSQL + pgvector (HNSW) |
 | Search | Hybrid full-text + vector (RRF) |

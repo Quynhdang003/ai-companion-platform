@@ -8,7 +8,7 @@ Update after every meaningful implementation change.
 
 ## Current goal
 
-- Week 2: not planned yet.
+- Week 2: memory across calls (criterion 4) and knowledge base search (backend + Dograh part of criterion 8). The hybrid search is reused by the scam engine in Week 3.
 
 ## Completed
 
@@ -30,11 +30,16 @@ Update after every meaningful implementation change.
 
 ## In progress
 
-- None.
+- `LLM-01`: Gemini client in `app/llm/` (JSON output + embeddings), fake for tests. Code + mocked-HTTP tests done; live smoke (`uv run pytest -m live`) waits for `GEMINI_API_KEY` in `backend/.env`.
 
 ## Next
 
-- None scheduled.
+- `MEM-01`: `memories` table + post-call extraction job (APScheduler, Gemini JSON → Pydantic → embed).
+- `MEM-02a`: pre-call hook adds `memory_summary` + `frequent_places` for ACTIVE callers (no LLM).
+- `MEM-02b`: Dograh prompt uses the memory keys; two-call recall test (criterion 4).
+- `RAG-01`: KB documents/chunks + hybrid search (full-text + trigram + vector, RRF) + sample documents.
+- `RAG-02a`: tool `POST /tools/search-knowledge`.
+- `RAG-02b`: Dograh `search_knowledge` tool + prompt; answer from a sample document by call.
 
 ## Backlog (unscheduled)
 
@@ -44,7 +49,6 @@ Update after every meaningful implementation change.
 
 ## Open questions
 
-- Embedding dims: 768 vs 1536.
 - Geocoding: self-hosted Nominatim/Photon vs Goong API.
 - Real telephony provider (if time allows) and its caller ID format.
 - In-call scam check trigger: per turn vs every N turns.
@@ -60,6 +64,7 @@ Update after every meaningful implementation change.
 - Per-call `session_token` via Preset Parameter: LLM can't spoof identity.
 - Self-built Ride Simulator, no Karhoo: no third-party dependency, full test control.
 - Hybrid search in PostgreSQL: no extra infra, tolerant to STT errors.
+- Embeddings: `gemini-embedding-001` at 768 dims for memories and KB: smaller HNSW index, enough for short Vietnamese text. Changing it means a full re-index.
 - Telegram for urgent alerts, Email for reports: email too slow for scam alerts.
 - Scam check split: real-time in-call + async post-call memory extraction.
 - Registration of a taken number returns 202 `link_requested`: tells the requester the number is registered (no personal data); accepted as inherent to the spec.

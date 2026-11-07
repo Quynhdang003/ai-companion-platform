@@ -8,7 +8,7 @@
 | STT/TTS | Dograh-managed (vi-VN, voice "Ngoc"), configured in Dograh | Vietnamese speech |
 | Conversation LLM | Dograh-managed (model `default`), configured in Dograh | Real-time dialogue, tool calling |
 | Analysis LLM | Gemini, JSON output + Pydantic | Scam classification, memory extraction |
-| Embedding | Gemini Embedding, fixed dims | Memory + KB vectors |
+| Embedding | `gemini-embedding-001`, 768 dims | Memory + KB vectors |
 | Backend | Python + FastAPI, SQLAlchemy 2 + Alembic, APScheduler | Business API, hooks, tools, jobs |
 | Ride Simulator | FastAPI + OSRM + Nominatim/Photon (or Goong) | Simulated ride provider over REST |
 | Database | PostgreSQL 17 + pgvector (HNSW), `unaccent`, `pg_trgm` | Data, memory, vectors, hybrid search |
