@@ -32,10 +32,8 @@ Update after every meaningful implementation change.
 
 ## In progress
 
-- `LLM-01`: Gemini client in `app/llm/` (JSON output + embeddings), fake for tests. Code + mocked-HTTP tests done; live smoke (`uv run pytest -m live`) waits for `GEMINI_API_KEY` in `backend/.env`.
-- `MEM-01`: `memories` table (`45022702e0a4`) + post-call extraction job (APScheduler, Gemini JSON → Pydantic → embed). Code + tests done; live check (text chat as an ACTIVE elder → `memories` rows) waits for `GEMINI_API_KEY`.
-
-- `MEM-02b`: Dograh prompt uses the memory keys (in `dograh/`, not yet published); two-call recall test (criterion 4) waits for the publish and `GEMINI_API_KEY`.
+- `MEM-01`: `memories` table (`45022702e0a4`) + post-call extraction job (APScheduler, Gemini JSON → Pydantic → embed). Code + tests done; live check (a call as an ACTIVE elder → `memories` rows) still to run.
+- `MEM-02b`: Dograh prompt uses the memory keys (saved as draft v14, matches `dograh/`; not yet published). Two-call recall test (criterion 4) still to run.
 
 ## Next
 
