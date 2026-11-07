@@ -27,6 +27,7 @@ Update after every meaningful implementation change.
 | `UI-02` | Public copy: family sees call time/duration only, no call summaries | Lint + build; `/`, `/demo` at 1440/390 |
 | `CALL-01a` | End-of-call webhook `/hooks/call-ended` → `call_logs` (`87d572f79894`); transcript for consented callers only | 134 tests; real Dograh transcript format |
 | `CALL-01b` | Dograh Webhook node → `/hooks/call-ended` (workflow v13), export in `dograh/` | Text chat: ACTIVE → transcript, unknown → metadata only; deliveries `succeeded` |
+| `LLM-01` | Gemini client (`app/llm/`): JSON output validated by Pydantic, 768-dim embeddings, fake for tests | Mocked-HTTP tests; live smoke (`pytest -m live`) vs Gemini |
 | `MEM-02a` | Pre-call hook adds `memory_summary` + `frequent_places` for ACTIVE callers (no LLM) | 174 tests; hook 9–13 ms warm (105 ms cold) with 100 memories |
 
 ## In progress
