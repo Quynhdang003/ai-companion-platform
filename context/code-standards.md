@@ -19,6 +19,12 @@
   - Structured output: `generate_json(prompt, Schema)` returns the validated Pydantic model.
   - Embeddings: `embed(texts, task="document" | "query")`, always `EMBEDDING_DIMS` (`app/llm/embeddings.py`) long.
   - Errors: `LLMError`; `LLMRateLimitedError` (429, retry later); `LLMNotConfiguredError` (no `GEMINI_API_KEY`).
+- Background jobs (pattern: `app/services/memory/job.py`):
+  - A status column marks the queued work.
+  - The job is registered in `app/core/scheduler.py` (APScheduler, started in the FastAPI lifespan; `SCHEDULER_ENABLED=false` turns it off).
+  - Claim one row at a time with `FOR UPDATE SKIP LOCKED`, and write its results in a savepoint, so an error leaves nothing half-written.
+  - LLM errors count as attempts, up to a max, then `failed`. Rate limits and a missing key don't count: the run stops and the row stays queued.
+  - Tests call the per-row function directly with `FakeLLMClient`; the test client never starts the scheduler.
 
 ## TypeScript
 

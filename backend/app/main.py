@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,8 +9,20 @@ from app.api.web import elders, link_requests, me
 from app.api.webhooks import clerk
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
+from app.core.scheduler import start_scheduler
 
-app = FastAPI(title="AI Companion Backend")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    scheduler = start_scheduler(get_settings())
+    try:
+        yield
+    finally:
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="AI Companion Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

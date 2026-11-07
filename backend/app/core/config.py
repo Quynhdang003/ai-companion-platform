@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "gemini-embedding-001"
     llm_timeout_seconds: float = 30.0
 
+    # Background jobs (APScheduler, started with the app). Tests never start them.
+    scheduler_enabled: bool = True
+    memory_job_interval_seconds: int = 30
+
 
 @lru_cache
 def get_settings() -> Settings:

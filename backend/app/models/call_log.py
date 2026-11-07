@@ -1,11 +1,21 @@
 import uuid
+from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import ForeignKey, Integer, Text, Uuid, text
+from sqlalchemy import Enum, ForeignKey, Integer, Text, Uuid, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
+
+
+class MemoryStatus(StrEnum):
+    """Post-call memory extraction of a call log (`app/services/memory/job.py`)."""
+
+    PENDING = "pending"  # transcript waiting for the job
+    DONE = "done"
+    SKIPPED = "skipped"  # no transcript kept, or the elder isn't ACTIVE any more
+    FAILED = "failed"  # gave up after repeated errors
 
 
 class CallLog(TimestampMixin, Base):
@@ -32,3 +42,15 @@ class CallLog(TimestampMixin, Base):
     transcript: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB(none_as_null=True))
     # Dograh public download link (anyone holding it can download the recording).
     recording_url: Mapped[str | None] = mapped_column(Text)
+    memory_status: Mapped[MemoryStatus] = mapped_column(
+        Enum(
+            MemoryStatus,
+            name="memory_status",
+            native_enum=False,
+            create_constraint=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
+        server_default=MemoryStatus.SKIPPED.value,
+    )
+    # Failed extraction attempts (rate limits don't count).
+    memory_attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))

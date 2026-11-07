@@ -53,6 +53,7 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
   - Upserts one `call_logs` row for the run's `call_session` (Dograh retries deliveries).
   - A run without a call session (its pre-call hook never reached us) is ignored: 200, nothing stored.
   - Transcript and `recording_url` are stored only if the session's elder is `ACTIVE` at that point (includes consent given during the call). Others get metadata only, and the transcript isn't downloaded.
+  - A stored transcript queues memory extraction (`memory_status = pending`); a background job does it later, outside the request. A retried delivery doesn't re-queue a log whose extraction is queued, done or failed.
   - The backend downloads the transcript from `transcript_url`, which must start with `DOGRAH_BASE_URL`.
   - Errors:
     - 401 `unauthorized`.

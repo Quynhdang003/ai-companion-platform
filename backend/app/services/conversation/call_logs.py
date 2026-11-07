@@ -2,11 +2,11 @@
 
 import logging
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import CallLog, CallSession, Elder, ElderStatus
+from app.models import CallLog, CallSession, Elder, ElderStatus, MemoryStatus
 from app.schemas.dograh import CallEndedRequest
 from app.services.conversation.dograh_client import TranscriptSource
 from app.services.conversation.transcript import parse_dograh_transcript
@@ -42,12 +42,25 @@ async def record_call_end(
         "transcript": transcript,
         "recording_url": recording_url,
     }
-    # Dograh retries deliveries: a repeat overwrites the same row.
+    # A transcript queues the post-call memory extraction (app/services/memory/job.py).
+    memory_status = MemoryStatus.PENDING if transcript else MemoryStatus.SKIPPED
+    stmt = insert(CallLog).values(call_session_id=session.id, memory_status=memory_status, **values)
+    # Dograh retries deliveries: a repeat overwrites the same row, but an extraction that is
+    # queued, done or failed keeps its state.
     return await db.scalar(
-        insert(CallLog)
-        .values(call_session_id=session.id, **values)
-        .on_conflict_do_update(
-            index_elements=[CallLog.call_session_id], set_={**values, "updated_at": func.now()}
+        stmt.on_conflict_do_update(
+            index_elements=[CallLog.call_session_id],
+            set_={
+                **values,
+                "memory_status": case(
+                    (
+                        CallLog.memory_status == MemoryStatus.SKIPPED.value,
+                        stmt.excluded.memory_status,
+                    ),
+                    else_=CallLog.memory_status,
+                ),
+                "updated_at": func.now(),
+            },
         )
         .returning(CallLog)
         .execution_options(populate_existing=True)

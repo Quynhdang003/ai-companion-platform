@@ -31,10 +31,10 @@ Update after every meaningful implementation change.
 ## In progress
 
 - `LLM-01`: Gemini client in `app/llm/` (JSON output + embeddings), fake for tests. Code + mocked-HTTP tests done; live smoke (`uv run pytest -m live`) waits for `GEMINI_API_KEY` in `backend/.env`.
+- `MEM-01`: `memories` table (`45022702e0a4`) + post-call extraction job (APScheduler, Gemini JSON → Pydantic → embed). Code + 165 tests done; live check (text chat as an ACTIVE elder → `memories` rows) waits for `GEMINI_API_KEY`.
 
 ## Next
 
-- `MEM-01`: `memories` table + post-call extraction job (APScheduler, Gemini JSON → Pydantic → embed).
 - `MEM-02a`: pre-call hook adds `memory_summary` + `frequent_places` for ACTIVE callers (no LLM).
 - `MEM-02b`: Dograh prompt uses the memory keys; two-call recall test (criterion 4).
 - `RAG-01`: KB documents/chunks + hybrid search (full-text + trigram + vector, RRF) + sample documents.
