@@ -30,9 +30,7 @@ Prerequisites: the stack is running (`infra/`, README "Dograh"), and the backend
 In the Dograh UI (http://localhost:3010):
 
 1. **Credential** (used by both the hook and the tool): type *Bearer token*, name `ai-companion-backend`, token = `DOGRAH_API_KEY`.
-2. **Providers → Add Provider**:
-   - *Google* (AI Studio, not Vertex), name `Gemini`, API key.
-   - For voice calls: *Azure Speech* (key + region).
+2. **Providers**: none needed. The workflow uses the Dograh-managed connection (created when you sign up on the self-host) for LLM, STT and TTS. Optional: *Google* (AI Studio, not Vertex), name `Gemini`, API key, as used in DG-01b's text-chat tests.
 3. **Tool**: create an HTTP API tool from `tools/confirm_activation.json`:
    - Method `POST`, URL `http://host.docker.internal:8000/tools/confirm-activation`, authentication = the credential.
    - No parameters. One preset parameter `session_token` (string, required) = `{{initial_context.session_token}}`.
@@ -43,7 +41,7 @@ In the Dograh UI (http://localhost:3010):
    - **Model configuration** (workflow override, as published in version 13):
      - LLM, STT and TTS use the Dograh-managed connection (`Dograh`).
      - LLM model `default`; STT language `vi`; TTS voice `dg_voice_f6111af0943623935399` ("Ngoc - Diligent Resolver", Vietnamese).
-     - DG-01b was tested with LLM = `Gemini` (`gemini-3.5-flash`). Azure Speech vi-VN is still an option (DG-01c).
+     - Voice calls run on this config since DG-01c (Azure Speech dropped). DG-01b's text-chat tests used LLM = `Gemini` (`gemini-3.5-flash`).
 5. **Publish** the workflow. Edits create a draft; calls use the published version.
 
 Same steps over the API (`TOKEN` from `POST /api/v1/auth/login`):
@@ -129,7 +127,7 @@ SELECT workflow_run_id, status, attempt_count, last_status_code FROM webhook_del
 
 **Tool test panel**: it sends preset values exactly as typed and does **not** render `{{initial_context.*}}`. A literal template gets 401 `invalid_session`. To test, call the pre-call hook for a test number and paste the returned `session_token`. Live calls render the preset from the call's `initial_context`.
 
-**Voice web calls** (checklist, needs Azure Speech vi-VN configured): for each case, set `caller_number` in Settings → Context Variables, save, publish, then start a web call.
+**Voice web calls** (checklist, Dograh-managed STT/TTS): for each case, set `caller_number` in Settings → Context Variables, save, publish, then start a web call.
 
 1. `+84912000001` (ACTIVE): you hear "Dạ, con chào bà Lan ạ." within ~2s of connecting. No consent question.
 2. `+84912000002` (PENDING):

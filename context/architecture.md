@@ -5,8 +5,8 @@
 | Layer | Technology | Role |
 |---|---|---|
 | Voice | Dograh 1.50.0 (self-host, Docker images) | Calls, pre-call hook, HTTP tools, end-of-call webhook |
-| STT/TTS | Azure Speech or Google Chirp (vi-VN), configured in Dograh | Vietnamese speech |
-| Conversation LLM | Gemini Flash (in Dograh) | Real-time dialogue, tool calling |
+| STT/TTS | Dograh-managed (vi-VN, voice "Ngoc"), configured in Dograh | Vietnamese speech |
+| Conversation LLM | Dograh-managed (model `default`), configured in Dograh | Real-time dialogue, tool calling |
 | Analysis LLM | Gemini, JSON output + Pydantic | Scam classification, memory extraction |
 | Embedding | Gemini Embedding, fixed dims | Memory + KB vectors |
 | Backend | Python + FastAPI, SQLAlchemy 2 + Alembic, APScheduler | Business API, hooks, tools, jobs |

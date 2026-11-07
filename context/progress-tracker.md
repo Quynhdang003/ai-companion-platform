@@ -4,11 +4,11 @@ Update after every meaningful implementation change.
 
 ## Current phase
 
-- Week 1 (plan: 4 weeks, ~5h/day).
+- Week 2 (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07.
 
 ## Current goal
 
-- Week 1: environment, DB schema, Clerk, elder registration, pre-call hook, `session_token`, basic Dograh workflow.
+- Week 2: not planned yet.
 
 ## Completed
 
@@ -34,9 +34,7 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- `DG-01c`: Azure Speech vi-VN STT/TTS (voice `vi-VN-HoaiMyNeural`) on the DG-01b workflow; run the voice web-call checklist in `dograh/README.md` (ACTIVE greeting within ~2s, consent by voice, unknown, backend down). The consent prompt should say family can't read the conversation.
-- `CHK-01`: manual browser check of Clerk sign-in form styling (AUTH-02) and signed-in public header (UI-01).
-- `OPS-01`: remove the orphaned admin user row (`user_3LE…`) from the dev DB; rename the Clerk application to "Touch the Light" (manual, Clerk Dashboard).
+- None scheduled.
 
 ## Backlog (unscheduled)
 
@@ -46,7 +44,6 @@ Update after every meaningful implementation change.
 
 ## Open questions
 
-- STT/TTS provider: Azure Speech vs Google Chirp (decide after vi-VN quality/latency test).
 - Embedding dims: 768 vs 1536.
 - Geocoding: self-hosted Nominatim/Photon vs Goong API.
 - Real telephony provider (if time allows) and its caller ID format.
@@ -67,6 +64,8 @@ Update after every meaningful implementation change.
 - Scam check split: real-time in-call + async post-call memory extraction.
 - Registration of a taken number returns 202 `link_requested`: tells the requester the number is registered (no personal data); accepted as inherent to the spec.
 - Family sees call metadata + scam alerts only, never transcripts or memories; no per-call summaries: elder privacy; content stays for memory and scam analysis.
+- Dograh-managed LLM/STT/TTS for calls (voice "Ngoc"), no Azure or Gemini provider: vi-VN works without extra provider keys; calls depend on Dograh's cloud service.
+- Consent prompt says who registered the number and what the service does, not what family can see: keeps the consent turn short.
 - Keep Clerk `createRouteMatcher` in `proxy.ts` (deprecated, removed in Clerk's next major): clean 307s before rendering, and the backend guards data anyway. Revisit on the Clerk major upgrade.
 
 ## Session notes
@@ -87,6 +86,6 @@ Update after every meaningful implementation change.
 
 - Dograh: pre-call hook times out after 10s; web calls need hook mode `Always` + a `caller_number` context variable; greetings need a fallback for missing variables. The tool test panel sends preset values as typed (no `{{initial_context.*}}` rendering): paste a real `session_token` from the hook. Ending a text chat (`.../end`) needs body `{"expected_revision": n}`; without it the run never completes and no end-of-call webhook is sent.
 
-- Dograh workflow: signing up on the self-host calls Dograh's cloud (managed service key, billing account, SIP), and the org default routes LLM/STT/TTS/embeddings through that managed connection. The DG-01b workflow overrides only the LLM (Gemini). Any saved change, Context Variables included, creates a draft: publish it. Edge labels become LLM function names (non-ASCII → `_`), so use ASCII `snake_case` labels. Text chat speaks only the greeting, and the prompt's first turn waits for the caller. Gemini free tier is 20 requests/day per model (each caller turn ≥ 1), enough for about one round of the text-chat tests.
+- Dograh workflow: signing up on the self-host calls Dograh's cloud (managed service key, billing account, SIP), and the org default routes LLM/STT/TTS/embeddings through that managed connection. Any saved change, Context Variables included, creates a draft: publish it. Edge labels become LLM function names (non-ASCII → `_`), so use ASCII `snake_case` labels. Text chat speaks only the greeting, and the prompt's first turn waits for the caller. Gemini free tier is 20 requests/day per model.
 
 - Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` to print Vietnamese.

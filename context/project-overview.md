@@ -63,8 +63,8 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 | Component | Technology |
 |---|---|
 | Voice | Dograh (self-host) |
-| STT/TTS | Azure Speech or Google Cloud Speech (Chirp), vi-VN, configured in Dograh |
-| Conversation LLM | Gemini Flash (in Dograh) |
+| STT/TTS | Dograh-managed, vi-VN (voice "Ngoc"), configured in Dograh |
+| Conversation LLM | Dograh-managed (model `default`), configured in Dograh |
 | Analysis LLM | Gemini, JSON structured output + Pydantic |
 | Embedding | Gemini Embedding, fixed dims (768 or 1536) |
 | Backend | Python + FastAPI, SQLAlchemy 2 + Alembic, APScheduler |
