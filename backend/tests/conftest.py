@@ -25,7 +25,8 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.dograh_auth import get_dograh_api_key
 from app.main import app
-from app.models import Elder, ElderFamily, ElderStatus, FamilyRole, User
+from app.models import Elder, ElderFamily, ElderStatus, FamilyRole, Memory, MemoryCategory, User
+from tests.fakes import fake_vector
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -172,3 +173,29 @@ async def add_elder(
     session.add(ElderFamily(elder_id=elder.id, user_id=owner.id, role=FamilyRole.OWNER))
     await session.flush()
     return elder
+
+
+async def add_memory(
+    session: AsyncSession,
+    elder: Elder,
+    content: str,
+    subject: str | None = None,
+    *,
+    category: MemoryCategory = MemoryCategory.PLACE,
+    importance: int = 3,
+    mention_count: int = 1,
+    last_mentioned_at: datetime | None = None,
+) -> Memory:
+    memory = Memory(
+        elder_id=elder.id,
+        category=category,
+        subject=subject,
+        content=content,
+        importance=importance,
+        mention_count=mention_count,
+        last_mentioned_at=last_mentioned_at or datetime.now(UTC),
+        embedding=fake_vector(content),
+    )
+    session.add(memory)
+    await session.flush()
+    return memory

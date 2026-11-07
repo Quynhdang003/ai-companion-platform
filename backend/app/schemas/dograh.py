@@ -40,6 +40,9 @@ class InitialContext(BaseModel):
     # ACTIVE only: no personal data before consent.
     full_name: str | None = None
     preferred_name: str | None = None
+    # ACTIVE only, omitted while the elder has no memories (app/services/memory/context.py).
+    memory_summary: str | None = None
+    frequent_places: str | None = None
     # PENDING_VERIFICATION only: the owner's name, so the agent can say who registered.
     registered_by: str | None = None
 

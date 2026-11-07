@@ -21,7 +21,7 @@ from app.models import (
     MemoryStatus,
 )
 from app.services.memory.job import MAX_ATTEMPTS, SessionFactory, process_next, run_memory_job
-from tests.conftest import add_elder
+from tests.conftest import add_elder, add_memory
 from tests.fakes import FakeLLMClient, fake_vector
 
 TURNS = [
@@ -66,22 +66,6 @@ async def add_call_log(
     session.add(log)
     await session.flush()
     return log
-
-
-async def add_memory(
-    session: AsyncSession, elder: Elder, content: str, subject: str | None = None
-) -> Memory:
-    memory = Memory(
-        elder_id=elder.id,
-        category=MemoryCategory.PLACE,
-        subject=subject,
-        content=content,
-        importance=3,
-        embedding=fake_vector(content),
-    )
-    session.add(memory)
-    await session.flush()
-    return memory
 
 
 async def memories_of(session: AsyncSession, elder: Elder) -> list[Memory]:

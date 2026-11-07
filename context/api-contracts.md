@@ -41,9 +41,13 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
 
   | `caller_status` | Keys |
   |---|---|
-  | `active` | `session_token`, `caller_status`, `is_registered: true`, `full_name`, `preferred_name` (falls back to `full_name`) |
+  | `active` | `session_token`, `caller_status`, `is_registered: true`, `full_name`, `preferred_name` (falls back to `full_name`), `memory_summary`, `frequent_places` |
   | `pending_consent` | `session_token`, `caller_status`, `is_registered: true`, `registered_by` (owner's name, omitted if not synced) |
   | `unknown` (unregistered, blocked, invalid or empty number) | `session_token`, `caller_status`, `is_registered: false` |
+
+  - `memory_summary`: up to 8 of the elder's non-place memories (most important, then most recent) as whole sentences, ≤ 600 characters.
+  - `frequent_places`: up to 5 place memories, most mentioned first, as `subject: content` joined by `; `.
+  - Both are omitted while the elder has no such memories. No LLM call in the hook.
 
 - `POST /tools/confirm-activation` `{session_token}` → 200 `{status: "activated" | "already_active", message, preferred_name}`.
   - Errors: 401 `invalid_session` (unknown or expired token), 404 `not_registered` (unknown or blocked caller).

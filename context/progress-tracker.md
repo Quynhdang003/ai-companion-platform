@@ -27,15 +27,15 @@ Update after every meaningful implementation change.
 | `UI-02` | Public copy: family sees call time/duration only, no call summaries | Lint + build; `/`, `/demo` at 1440/390 |
 | `CALL-01a` | End-of-call webhook `/hooks/call-ended` → `call_logs` (`87d572f79894`); transcript for consented callers only | 134 tests; real Dograh transcript format |
 | `CALL-01b` | Dograh Webhook node → `/hooks/call-ended` (workflow v13), export in `dograh/` | Text chat: ACTIVE → transcript, unknown → metadata only; deliveries `succeeded` |
+| `MEM-02a` | Pre-call hook adds `memory_summary` + `frequent_places` for ACTIVE callers (no LLM) | 174 tests; hook 9–13 ms warm (105 ms cold) with 100 memories |
 
 ## In progress
 
 - `LLM-01`: Gemini client in `app/llm/` (JSON output + embeddings), fake for tests. Code + mocked-HTTP tests done; live smoke (`uv run pytest -m live`) waits for `GEMINI_API_KEY` in `backend/.env`.
-- `MEM-01`: `memories` table (`45022702e0a4`) + post-call extraction job (APScheduler, Gemini JSON → Pydantic → embed). Code + 165 tests done; live check (text chat as an ACTIVE elder → `memories` rows) waits for `GEMINI_API_KEY`.
+- `MEM-01`: `memories` table (`45022702e0a4`) + post-call extraction job (APScheduler, Gemini JSON → Pydantic → embed). Code + tests done; live check (text chat as an ACTIVE elder → `memories` rows) waits for `GEMINI_API_KEY`.
 
 ## Next
 
-- `MEM-02a`: pre-call hook adds `memory_summary` + `frequent_places` for ACTIVE callers (no LLM).
 - `MEM-02b`: Dograh prompt uses the memory keys; two-call recall test (criterion 4).
 - `RAG-01`: KB documents/chunks + hybrid search (full-text + trigram + vector, RRF) + sample documents.
 - `RAG-02a`: tool `POST /tools/search-knowledge`.
