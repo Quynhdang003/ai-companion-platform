@@ -13,7 +13,7 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
 - **Start Call** node: pre-call data fetch mode `Always` → `POST http://host.docker.internal:8000/hooks/pre-call` (Bearer credential). The response's `initial_context` keys are listed in `context/api-contracts.md`.
 - Greeting (TTS, no LLM wait): `Dạ, con chào {{preferred_name | bác}} ạ.` → name for `active`, "bác" for everyone else.
 - The prompt branches on `{{caller_status | unknown}}`:
-  - `active`: chat by preferred name.
+  - `active`: chat by preferred name, using `{{memory_summary | chưa có}}` and `{{frequent_places | chưa có}}` from the pre-call hook (MEM-02b) naturally, without reading them out.
   - `pending_consent`: says the number was registered by `{{registered_by | người thân của bác}}`, explains briefly, asks for consent. It calls `confirm_activation` only after a clear yes, then reads back the tool's `message`.
   - `unknown` or missing: generic greeting, no personal data, no tool calls.
 - **Global** node: tone (Vietnamese, "con"/"bác", one or two short sentences per turn) and safety rules (never ask for or repeat phone numbers or identifiers, no claims about the service beyond the prompt).
