@@ -18,7 +18,7 @@ class CallSession(Base):
         ForeignKey("elders.id", ondelete="CASCADE"), index=True
     )
     session_token_hash: Mapped[str] = mapped_column(Text, unique=True)
-    # Set when Dograh's end-of-call webhook links the run to this session.
+    # Dograh's run id, sent with the pre-call hook; links the end-of-call webhook to this session.
     workflow_run_id: Mapped[str | None] = mapped_column(Text, unique=True)
     from_number: Mapped[str] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

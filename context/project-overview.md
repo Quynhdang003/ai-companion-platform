@@ -10,7 +10,7 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 2. Remember info across calls and reuse it in context (e.g. "same as last time" → home → Bach Mai Hospital).
 3. Detect scams in-call (impersonating police/bank/grandchildren, investment, health supplements, resort contracts, fake charity), warn the user, alert family via Telegram on high risk.
 4. Execute tasks via tool calling, always with verbal confirmation before sensitive actions.
-5. Let family register, manage profiles and view call history on the website.
+5. Let family register, manage profiles and view call activity (time, duration, scam alerts) on the website, never conversation content.
 
 ## Core user flows
 
@@ -24,15 +24,15 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 
 ### B – Elderly user calls
 
-1. Call reaches Dograh → pre-call hook `POST /hooks/pre-call` `{from_number, to_number, agent_id}` + API key.
-2. Backend verifies key, normalizes number, looks up `elders`, creates `call_session` + `session_token`.
-3. Returns `initial_context`:
-   - `ACTIVE`: name, preferred name, memory summary, frequent places, `session_token`.
-   - `PENDING_VERIFICATION`: registering family name, `session_token` (AI asks consent).
-   - Unknown/blocked: `is_registered: false`, generic greeting, no personal data.
+1. Call reaches Dograh → pre-call hook `POST /hooks/pre-call` with the caller's number + API key (`Authorization: Bearer`).
+2. Backend verifies key, normalizes number, looks up `elders`, creates `call_session` (with `workflow_run_id`) + `session_token`.
+3. Returns the call's `initial_context` (prompts use `{{key | fallback}}`). Exact request/response and `initial_context` keys: see `api-contracts.md`.
+   - `ACTIVE`: greeted by name; memory summary and frequent places added by the MEM units.
+   - `PENDING_VERIFICATION`: told who registered the number; AI asks consent → tool `POST /tools/confirm-activation`.
+   - Unknown/blocked: generic greeting, no personal data; the session is linked to no elder.
 4. All HTTP tools send `session_token` via Preset Parameter `{{initial_context.session_token}}`; backend resolves `elder_id`.
-5. Scam Risk Engine scores each turn; high risk → AI warns + Telegram alert to family.
-6. End-of-call webhook (transcript, linked via `workflow_run_id`) → async memory extraction + call summary.
+5. Scam Risk Engine scores each turn; high risk → AI warns + Telegram alert to family (scam type, risk level and time only, no quotes from the call).
+6. End-of-call webhook (transcript, linked via `workflow_run_id`) → async memory extraction. No per-call summary is generated.
 
 ### C – Ride booking
 
@@ -43,13 +43,13 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 ## Modules
 
 - **Companion Agent**: real-time Vietnamese voice chat, elderly-friendly tone; orchestrator routes requests (chat / info / task / safety).
-- **Memory Manager**: post-call extraction with Gemini JSON output + Pydantic; embedded memories; summary served in pre-call hook.
+- **Memory Manager**: post-call extraction with Gemini JSON output + Pydantic; embedded memories; memory summary served in pre-call hook. Memories are AI-only, never shown to family.
 - **RAG Agent**: KB (elderly support, services, safety, scam knowledge); hybrid search (PG full-text `simple` + `unaccent` + `pg_trgm` + pgvector, RRF).
 - **Scam Risk Engine**: layer 1 rules/keywords; layer 2 Gemini classification with retrieved scam patterns → JSON `{risk_level, scam_type, signals, reason}`.
 - **Task Agent**: tools `search_location`, `get_ride_quote`, `book_ride`, `get_ride_status`, `cancel_ride`, `contact_family`, reminders, weather; `RideProvider` interface → Ride Simulator over REST.
 - **Ride Simulator** (separate FastAPI service): OSRM routing; Nominatim/Photon (or Goong) geocoding; pricing (base + per km + per min by ride type, peak multiplier); fake drivers seeded around Hanoi; state machine `REQUESTED → DRIVER_ASSIGNED → ARRIVING → IN_PROGRESS → COMPLETED/CANCELLED` computed from timestamps; `time_scale`, fixed `seed`, fault injection (no driver, driver cancels, timeout, price surge). API: `POST /quotes`, `POST /bookings`, `GET /bookings/{id}`, `POST /bookings/{id}/cancel`, `GET /places/search`.
-- **Notification Service**: `NotificationChannel` interface; Email (reports) + Telegram Bot (urgent alerts).
-- **Family website**: auth, register elder, manage profile, call history (summary, duration, scam alerts), notification settings, web call simulation.
+- **Notification Service**: `NotificationChannel` interface; Email (reports) + Telegram Bot (urgent alerts). Messages to family carry call metadata and scam type/level only, never conversation content.
+- **Family website**: auth, register elder, manage profile, call activity (frequency, time, duration, scam alerts; no transcripts, summaries or memories), notification settings, web call simulation.
 - **Admin website**: manage KB documents (auto embed/index) and scam patterns.
 
 ## Scope
@@ -63,8 +63,8 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 | Component | Technology |
 |---|---|
 | Voice | Dograh (self-host) |
-| STT/TTS | Azure Speech or Google Cloud Speech (Chirp), vi-VN, configured in Dograh |
-| Conversation LLM | Gemini Flash (in Dograh) |
+| STT/TTS | Dograh-managed, vi-VN (voice "Ngoc"), configured in Dograh |
+| Conversation LLM | Dograh-managed (model `default`), configured in Dograh |
 | Analysis LLM | Gemini, JSON structured output + Pydantic |
 | Embedding | Gemini Embedding, fixed dims (768 or 1536) |
 | Backend | Python + FastAPI, SQLAlchemy 2 + Alembic, APScheduler |
@@ -95,5 +95,5 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 4. Info from a previous call is correctly recalled in a later call.
 5. On a test set covering all 6 scam types, high-risk scenarios are flagged, the AI warns in-call and family gets a Telegram alert.
 6. Voice ride booking works via quote → confirm → book; `book_ride` never runs without confirmation; simulator fault cases are handled and reported to the user.
-7. Family sees call history only for elders they manage.
+7. Family sees call activity (no conversation content) only for elders they manage.
 8. Admin adds a KB document and the AI answers questions from it.

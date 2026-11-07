@@ -23,13 +23,17 @@ from app.api.webhooks.clerk import get_clerk_webhook
 from app.core.auth import ClerkJWTVerifier, get_verifier
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.dograh_auth import get_dograh_api_key
 from app.main import app
+from app.models import Elder, ElderFamily, ElderStatus, FamilyRole, User
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 TEST_ISSUER = "https://test.clerk.example"
 TEST_AZP = "http://localhost:3000"
 WEBHOOK_SECRET = "whsec_" + base64.b64encode(b"test-webhook-secret-0123").decode()
+DOGRAH_KEY = "test-dograh-key"
+DOGRAH_HEADERS = {"Authorization": f"Bearer {DOGRAH_KEY}"}
 
 TokenFactory = Callable[..., str]
 HeadersFactory = Callable[[str], dict[str, str]]
@@ -128,6 +132,7 @@ async def client(session: AsyncSession, rsa_key: rsa.RSAPrivateKey) -> AsyncIter
     app.dependency_overrides[get_db] = lambda: session
     app.dependency_overrides[get_verifier] = lambda: verifier
     app.dependency_overrides[get_clerk_webhook] = lambda: Webhook(WEBHOOK_SECRET)
+    app.dependency_overrides[get_dograh_api_key] = lambda: DOGRAH_KEY
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             yield c
@@ -144,3 +149,26 @@ def svix_headers(body: str, secret: str = WEBHOOK_SECRET) -> dict[str, str]:
         "svix-timestamp": str(int(timestamp.timestamp())),
         "svix-signature": Webhook(secret).sign(msg_id, timestamp, body),
     }
+
+
+async def add_elder(
+    session: AsyncSession,
+    *,
+    status: ElderStatus,
+    phone_e164: str = "+84912345678",
+    preferred_name: str | None = "bà Lan",
+    owner_name: str | None = "Hoa",
+) -> Elder:
+    """Elder "Nguyễn Thị Lan" owned by a user whose Clerk display name is `owner_name`."""
+    elder = Elder(
+        phone_e164=phone_e164,
+        full_name="Nguyễn Thị Lan",
+        preferred_name=preferred_name,
+        status=status,
+    )
+    owner = User(clerk_user_id=f"user_owner_{uuid.uuid4().hex[:8]}", display_name=owner_name)
+    session.add_all([elder, owner])
+    await session.flush()
+    session.add(ElderFamily(elder_id=elder.id, user_id=owner.id, role=FamilyRole.OWNER))
+    await session.flush()
+    return elder

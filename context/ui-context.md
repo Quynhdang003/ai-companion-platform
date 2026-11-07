@@ -71,11 +71,11 @@ shadcn/ui on Tailwind, in `components/ui/`. Add components via shadcn CLI, don't
 ## Layout patterns
 
 - Public pages (`app/(public)/`: `/`, `/demo`, `/sign-in`, `/sign-up`): each page starts with `<PublicHero current=…>` (`bg-hero` + `PublicHeader`: logo, pill nav, account actions); the group layout adds `PublicFooter`. Container `max-w-[1200px] px-6`; nav wraps to its own centered row below 900px; tap targets ≥ 44px. Components in `components/public/`.
-- Landing page: hero (eyebrow, heading with `text-gradient` words, register + demo CTAs), how it works (call → AI companion → family alerts) on a white band, `CtaBanner`.
-- Demo page: hero, two overlapping cards (demo hotline, web call), white band with scenario tabs (chat transcript + "Phía sau cuộc gọi" steps, risk bar for scam), `CtaBanner`.
-- Sign-in / sign-up: Clerk form centered inside `PublicHero`.
+- Landing page: hero (eyebrow, heading with `text-gradient` words, register + demo CTAs), how it works (call → AI companion → family alerts) on a white band, `CtaBanner`. "Đăng ký cho người thân" CTAs link to `/dashboard/elders/new` (signed-out → `/sign-in` → back).
+- Demo page: hero, two overlapping cards (demo hotline from `NEXT_PUBLIC_DEMO_PHONE_NUMBER`, unset → shows "Sắp ra mắt"; web call), white band with scenario tabs (←/→ keys switch tabs; chat transcript + "Phía sau cuộc gọi" steps, risk bar for scam), `CtaBanner`.
+- Sign-in / sign-up: Clerk form centered inside `PublicHero`; `ClerkProvider` uses the vi-VN localization and takes accent color + font from the tokens.
 - Dashboard: left sidebar (fixed width, right border) + main content; collapses to top nav on mobile.
-- Elder detail: profile card, call history list, scam alerts with risk badge.
+- Elder detail: profile card, call activity list (time, duration), scam alerts with risk badge; no conversation content.
 - Navbar (dashboard/admin): top bar with bottom border, brand logo, user menu (Clerk).
 - Dashboard (current, before the sidebar): page title + primary action, sections "Yêu cầu chờ bạn duyệt" (only when any), "Người thân của bạn" (card grid, dashed empty state), "Yêu cầu bạn đã gửi". Status badges are `rounded-full` pills on the soft tokens (`bg-warning-soft text-warning-text`, …), 14px text. shadcn controls default to 32px / 12–14px; pass `h-11 text-base` so inputs and buttons stay ≥ 44px and ≥ 16px.
 - Forms: centered `max-w-xl` card, shadcn `Field` + `FieldLabel` + `FieldDescription` + `FieldError`; backend error codes map to field errors, anything else to a toast.

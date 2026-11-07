@@ -2,7 +2,7 @@
 
 ## Approach
 
-Spec-driven, small increments. Context files (`project-overview.md`, `architecture.md`, `code-standards.md`, `ui-context.md`, `progress-tracker.md`) define what to build, how, and current status. Always implement from them; never guess or invent behavior.
+Spec-driven, small increments. Context files (`project-overview.md`, `architecture.md`, `api-contracts.md`, `code-standards.md`, `ui-context.md`, `progress-tracker.md`) define what to build, how, and current status. Always implement from them; never guess or invent behavior.
 
 ## Scope rules
 
@@ -15,7 +15,7 @@ Spec-driven, small increments. Context files (`project-overview.md`, `architectu
 Split a step if it mixes:
 
 - Backend logic and frontend UI.
-- Real-time call path (pre-call hook, HTTP tools) and async post-call jobs (memory extraction, summaries).
+- Real-time call path (pre-call hook, HTTP tools) and async post-call jobs (memory extraction, scam analysis).
 - Several unrelated API routes or modules.
 - Behavior not clearly defined in context files.
 
@@ -38,11 +38,21 @@ Don't edit unless explicitly asked:
 
 ## Keep docs in sync
 
-Update the relevant context file when implementation changes: architecture or boundaries, storage model, conventions, feature scope.
+Update the relevant context file when implementation changes: architecture or boundaries, storage model, conventions, feature scope. API routes, status or error codes → `api-contracts.md`.
+
+## Progress tracker format
+
+- `Completed`: one table row per unit — ID, summary (≤ 15 words), how verified. No file lists or implementation details.
+- Implementation details go in the commit message.
+- Conventions later units must reuse → `code-standards.md`; boundaries/invariants → `architecture.md`; routes/status codes → `api-contracts.md`.
+- Unverified items go to `Next`, not `Completed`.
+- Every `Next` item has a backlog ID.
+- Session notes hold environment gotchas only; prune stale ones at the end of each week.
 
 ## Before moving to the next unit
 
 1. Current unit works end-to-end within its defined scope.
 2. No invariant in `architecture.md` is violated.
 3. `progress-tracker.md` reflects completed work.
-4. Checks pass: `pytest` + `ruff check` (backend, ride-sim); `npm run build` + `npm run lint` (frontend).
+4. `api-contracts.md` matches any route added or changed in this unit.
+5. Checks pass: `pytest` + `ruff check` (backend, ride-sim); `npm run build` + `npm run lint` (frontend).

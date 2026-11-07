@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     clerk_webhook_secret: str = ""
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Shared secret Dograh sends as `Authorization: Bearer ...` on hooks and tools.
+    dograh_api_key: str = ""
+    # Lifetime of a call's session_token; tools reject it afterwards.
+    session_token_ttl_minutes: int = 120
+    # Dograh API origin as seen from the backend (Dograh's BACKEND_API_ENDPOINT). The backend
+    # downloads transcripts only from links under it.
+    dograh_base_url: str = "http://localhost:8010"
+
 
 @lru_cache
 def get_settings() -> Settings:
