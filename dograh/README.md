@@ -100,7 +100,7 @@ SELECT pending.id, fam.id, 'owner' FROM pending, fam;
 COMMIT;
 
 -- Re-run the consent test:
-UPDATE elders SET status = 'PENDING_VERIFICATION', consent_at = NULL WHERE phone_e164 = '+84912000002';
+UPDATE elders SET status = 'PENDING_VERIFICATION', consent_at = NULL WHERE phone_e164 = '+84967877505';
 
 -- Check after the consent test:
 SELECT phone_e164, status, consent_at FROM elders WHERE phone_e164 = '+84912000002';
