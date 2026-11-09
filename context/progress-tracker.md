@@ -32,15 +32,15 @@ Update after every meaningful implementation change.
 | `MEM-02a` | Pre-call hook adds `memory_summary` + `frequent_places` for ACTIVE callers (no LLM) | 174 tests; hook 9–13 ms warm (105 ms cold) with 100 memories |
 | `MEM-02b` | Dograh prompt uses the memory keys (workflow v14) | Criterion 4 by voice: call 2 recalled the back pain and Bạch Mai |
 | `RAG-01` | KB documents/chunks (`29dd51ed62b1`), hybrid search (full-text + trigram + vector, RRF), 3 sample docs + seed | 203 tests; real embeddings: 6/6 related questions → right doc, 2/2 unrelated → nothing |
+| `RAG-02a` | Tool `POST /tools/search-knowledge`: top 3 KB chunks for any live call | 215 tests; dev backend, real embeddings: emergency/OTP/cost questions → right doc, gold price → nothing; 0.4–0.75 s |
 
 ## In progress
 
-- None.
+- `RAG-02b`: Dograh `search_knowledge` tool + prompt; answer from a sample document by call.
 
 ## Next
 
-- `RAG-02a`: tool `POST /tools/search-knowledge`.
-- `RAG-02b`: Dograh `search_knowledge` tool + prompt; answer from a sample document by call.
+- None.
 
 ## Backlog (unscheduled)
 

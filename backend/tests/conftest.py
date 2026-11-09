@@ -24,9 +24,10 @@ from app.core.auth import ClerkJWTVerifier, get_verifier
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.dograh_auth import get_dograh_api_key
+from app.llm.client import get_llm_client
 from app.main import app
 from app.models import Elder, ElderFamily, ElderStatus, FamilyRole, Memory, MemoryCategory, User
-from tests.fakes import fake_vector
+from tests.fakes import FakeLLMClient, fake_vector
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -134,6 +135,8 @@ async def client(session: AsyncSession, rsa_key: rsa.RSAPrivateKey) -> AsyncIter
     app.dependency_overrides[get_verifier] = lambda: verifier
     app.dependency_overrides[get_clerk_webhook] = lambda: Webhook(WEBHOOK_SECRET)
     app.dependency_overrides[get_dograh_api_key] = lambda: DOGRAH_KEY
+    # Routes never reach Gemini in tests; override again to use a specific fake.
+    app.dependency_overrides[get_llm_client] = lambda: FakeLLMClient()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             yield c
@@ -173,6 +176,13 @@ async def add_elder(
     session.add(ElderFamily(elder_id=elder.id, user_id=owner.id, role=FamilyRole.OWNER))
     await session.flush()
     return elder
+
+
+async def start_call(client: AsyncClient, from_number: str = "0912345678") -> str:
+    """Run the pre-call hook for `from_number` and return the call's session token."""
+    body = {"event": "call_inbound", "call_inbound": {"from_number": from_number}}
+    response = await client.post("/hooks/pre-call", json=body, headers=DOGRAH_HEADERS)
+    return response.json()["initial_context"]["session_token"]
 
 
 async def add_memory(

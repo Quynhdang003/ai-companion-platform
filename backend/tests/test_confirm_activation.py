@@ -5,13 +5,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CallSession, Elder, ElderStatus
-from tests.conftest import DOGRAH_HEADERS, add_elder
-
-
-async def start_call(client: AsyncClient, from_number: str = "0912345678") -> str:
-    body = {"event": "call_inbound", "call_inbound": {"from_number": from_number}}
-    response = await client.post("/hooks/pre-call", json=body, headers=DOGRAH_HEADERS)
-    return response.json()["initial_context"]["session_token"]
+from tests.conftest import DOGRAH_HEADERS, add_elder, start_call
 
 
 async def confirm(

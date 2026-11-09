@@ -64,6 +64,23 @@ class ConfirmActivationOut(BaseModel):
     preferred_name: str
 
 
+class SearchKnowledgeRequest(SessionToolRequest):
+    # Written by the LLM: the caller's question, rewritten short. Never logged or stored.
+    query: str = Field(min_length=1, max_length=500)
+
+
+class KnowledgeResult(BaseModel):
+    title: str
+    content: str
+
+
+class SearchKnowledgeOut(BaseModel):
+    found: bool
+    # Short, speakable Vietnamese; when nothing is found the agent says it as is.
+    message: str
+    results: list[KnowledgeResult]
+
+
 class CallEndedRequest(BaseModel):
     """Body of the end-of-call Webhook node (its payload template, see `dograh/`).
 
