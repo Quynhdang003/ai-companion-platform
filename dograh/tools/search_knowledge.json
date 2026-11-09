@@ -1,0 +1,40 @@
+{
+  "name": "search_knowledge",
+  "description": "Tìm thông tin trong kho kiến thức của dịch vụ Touch the Light. Gọi khi người gọi hỏi về: cách dùng dịch vụ, chi phí, quyền riêng tư; các kiểu lừa đảo qua điện thoại và cách phòng tránh; số điện thoại khẩn cấp và cần làm gì khi khẩn cấp. Không gọi khi chỉ trò chuyện, hỏi thăm, hoặc khi người gọi kể chuyện của mình. Kết quả có found (có tìm thấy không), message (câu nói được) và results (các đoạn thông tin, mỗi đoạn có title và content).",
+  "category": "http_api",
+  "definition": {
+    "schema_version": 1,
+    "type": "http_api",
+    "messages": [
+      {
+        "type": "text",
+        "event": "delayed",
+        "after_ms": 1500,
+        "text": "Dạ, con tìm một chút ạ."
+      }
+    ],
+    "config": {
+      "method": "POST",
+      "url": "http://host.docker.internal:8000/tools/search-knowledge",
+      "credential_uuid": "<CREDENTIAL_UUID>",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "description": "Câu hỏi của người gọi, viết lại ngắn gọn, đủ ý, bằng tiếng Việt có dấu, dùng từ rõ nghĩa (ví dụ: \"chi phí dịch vụ\", \"số điện thoại cấp cứu\", \"ngân hàng gọi hỏi mã OTP\"). Không đưa tên, số điện thoại hay thông tin cá nhân nào vào.",
+          "required": true
+        }
+      ],
+      "preset_parameters": [
+        {
+          "name": "session_token",
+          "type": "string",
+          "value_template": "{{initial_context.session_token}}",
+          "required": true
+        }
+      ],
+      "timeout_ms": 5000,
+      "body_format": "json"
+    }
+  }
+}

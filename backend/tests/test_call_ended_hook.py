@@ -8,7 +8,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
-from app.models import CallLog, CallSession, Elder, ElderStatus
+from app.models import CallLog, CallSession, Elder, ElderStatus, MemoryStatus
 from app.services.conversation.dograh_client import (
     DograhTranscriptSource,
     TranscriptFetchError,
@@ -108,6 +108,7 @@ async def test_active_caller_gets_transcript_and_recording(
     assert log.transcript == TURNS
     assert log.recording_url == RECORDING_URL
     assert transcripts.urls == [TRANSCRIPT_URL]
+    assert log.memory_status is MemoryStatus.PENDING
 
 
 async def test_caller_who_consented_during_the_call_gets_transcript(
@@ -144,6 +145,7 @@ async def test_caller_without_consent_gets_metadata_only(
     assert await transcript_is_sql_null(session)
     assert log.recording_url is None
     assert transcripts.urls == []
+    assert log.memory_status is MemoryStatus.SKIPPED
 
 
 async def test_retried_delivery_updates_the_same_row(
@@ -158,6 +160,20 @@ async def test_retried_delivery_updates_the_same_row(
     assert response.status_code == 200
     [log] = await call_logs(session)
     assert log.duration_seconds == 43
+
+
+async def test_retried_delivery_keeps_a_finished_memory_extraction(
+    client: AsyncClient, session: AsyncSession, transcripts: FakeTranscripts
+) -> None:
+    elder = await add_elder(session, status=ElderStatus.ACTIVE)
+    await start_call(session, elder)
+    await call_ended(client)
+    await session.execute(update(CallLog).values(memory_status=MemoryStatus.DONE))
+
+    await call_ended(client)
+
+    [log] = await call_logs(session)
+    assert log.memory_status is MemoryStatus.DONE
 
 
 async def test_run_without_call_session_is_ignored(

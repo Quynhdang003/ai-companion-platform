@@ -14,7 +14,17 @@
 - Routes stay thin: validate → call service → return. Logic lives in `services/`.
 - External services (Gemini, ride provider, notification channels) behind interfaces (`RideProvider`, `NotificationChannel`, LLM client) for mocking in tests.
 - Async DB access with SQLAlchemy 2; schema changes only via Alembic migrations.
-- `pytest` tests for every service; mock external APIs.
+- `pytest` tests for every service; mock external APIs. Tests that call a real external API are marked `live` and skipped by default (`uv run pytest -m live` runs them).
+- LLM calls go through `LLMClient` (`app/llm/client.py`, `get_llm_client()`); services take it as a parameter, tests pass `FakeLLMClient` (`tests/fakes.py`). Routes get it with `Depends(get_llm_client)`; the test `client` fixture overrides it with `FakeLLMClient` (override again in a test for a specific fake).
+  - Structured output: `generate_json(prompt, Schema)` returns the validated Pydantic model.
+  - Embeddings: `embed(texts, task="document" | "query")`, always `EMBEDDING_DIMS` (`app/llm/embeddings.py`) long.
+  - Errors: `LLMError`; `LLMRateLimitedError` (429, retry later); `LLMNotConfiguredError` (no `GEMINI_API_KEY`).
+- Background jobs (pattern: `app/services/memory/job.py`):
+  - A status column marks the queued work.
+  - The job is registered in `app/core/scheduler.py` (APScheduler, started in the FastAPI lifespan; `SCHEDULER_ENABLED=false` turns it off).
+  - Claim one row at a time with `FOR UPDATE SKIP LOCKED`, and write its results in a savepoint, so an error leaves nothing half-written.
+  - LLM errors count as attempts, up to a max, then `failed`. Rate limits and a missing key don't count: the run stops and the row stays queued.
+  - Tests call the per-row function directly with `FakeLLMClient`; the test client never starts the scheduler.
 
 ## TypeScript
 
@@ -55,6 +65,8 @@
 - Phone numbers normalized to E.164 at the boundary, always via `normalize_vn_phone` (`app/services/identity/phone.py`; VN mobile + landline only); `elders.phone_e164` also has an E.164 `CHECK`.
 - Store tokens hashed; never log tokens, phone numbers or transcripts in plain logs.
 - Nullable JSONB columns use `JSONB(none_as_null=True)`: by default SQLAlchemy writes Python `None` as JSON `null`, which `IS NULL` doesn't match.
+- Accent-free text search: generated columns and indexes call `immutable_unaccent()` (from the KB migration; `unaccent` itself isn't IMMUTABLE). In Python, `fold()` (`app/services/rag/search.py`) strips diacritics the same way.
+- Hybrid search (`app/services/rag/search.py`): each ranking keeps only relevant rows (full-text word coverage, trigram threshold, max vector distance), then `rrf_merge` fuses them; the query embedding has a short timeout and falls back to lexical search. New searchable corpora (scam patterns) reuse `query_words`, `fold` and `rrf_merge`, and get thresholds calibrated with real embeddings.
 
 ## File organization
 
@@ -64,5 +76,6 @@
 - `backend/app/models/`, `backend/app/schemas/` — ORM models, Pydantic schemas.
 - `backend/app/llm/` — Gemini client, prompts, output schemas.
 - `backend/tests/` — pytest tests.
+- `backend/scripts/` — maintenance scripts, run as `uv run python -m scripts.<name>`; `backend/data/` — sample data (KB documents).
 - `ride-sim/app/` — simulator routes, pricing, dispatch, state machine.
 - `frontend/app/` — routes; `frontend/components/` — feature components; `frontend/lib/` — API client, utils.

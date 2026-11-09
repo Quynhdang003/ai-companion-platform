@@ -40,6 +40,9 @@ class InitialContext(BaseModel):
     # ACTIVE only: no personal data before consent.
     full_name: str | None = None
     preferred_name: str | None = None
+    # ACTIVE only, omitted while the elder has no memories (app/services/memory/context.py).
+    memory_summary: str | None = None
+    frequent_places: str | None = None
     # PENDING_VERIFICATION only: the owner's name, so the agent can say who registered.
     registered_by: str | None = None
 
@@ -59,6 +62,23 @@ class ConfirmActivationOut(BaseModel):
     # Short, speakable Vietnamese for the agent.
     message: str
     preferred_name: str
+
+
+class SearchKnowledgeRequest(SessionToolRequest):
+    # Written by the LLM: the caller's question, rewritten short. Never logged or stored.
+    query: str = Field(min_length=1, max_length=500)
+
+
+class KnowledgeResult(BaseModel):
+    title: str
+    content: str
+
+
+class SearchKnowledgeOut(BaseModel):
+    found: bool
+    # Short, speakable Vietnamese; when nothing is found the agent says it as is.
+    message: str
+    results: list[KnowledgeResult]
 
 
 class CallEndedRequest(BaseModel):

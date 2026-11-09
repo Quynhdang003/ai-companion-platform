@@ -41,18 +41,30 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
 
   | `caller_status` | Keys |
   |---|---|
-  | `active` | `session_token`, `caller_status`, `is_registered: true`, `full_name`, `preferred_name` (falls back to `full_name`) |
+  | `active` | `session_token`, `caller_status`, `is_registered: true`, `full_name`, `preferred_name` (falls back to `full_name`), `memory_summary`, `frequent_places` |
   | `pending_consent` | `session_token`, `caller_status`, `is_registered: true`, `registered_by` (owner's name, omitted if not synced) |
   | `unknown` (unregistered, blocked, invalid or empty number) | `session_token`, `caller_status`, `is_registered: false` |
+
+  - `memory_summary`: up to 8 of the elder's non-place memories (most important, then most recent) as whole sentences, ≤ 600 characters.
+  - `frequent_places`: up to 5 place memories, most mentioned first, as `subject: content` joined by `; `.
+  - Both are omitted while the elder has no such memories. No LLM call in the hook.
 
 - `POST /tools/confirm-activation` `{session_token}` → 200 `{status: "activated" | "already_active", message, preferred_name}`.
   - Errors: 401 `invalid_session` (unknown or expired token), 404 `not_registered` (unknown or blocked caller).
   - `message` (success and errors) is short speakable Vietnamese for the agent.
 
+- `POST /tools/search-knowledge` `{session_token, query}` → 200 `{found, message, results: [{title, content}]}`.
+  - `query` (1–500 chars) is the caller's question, written by the LLM; never logged or stored.
+  - Any caller with a live session (active, pending consent, unknown or blocked): the KB holds no personal data.
+  - Up to 3 KB chunks (≤ 800 chars each) from the hybrid search, best first. If the query embedding fails or takes over 2 s, the search is lexical only.
+  - Nothing relevant → 200 with `found: false`, `results: []`. `message` is speakable Vietnamese: "Dạ, con chưa có thông tin về việc này ạ." (not found) or "Dạ, con tìm được thông tin rồi ạ." (found; the agent answers from `results`).
+  - Errors: 401 `invalid_session`, 422 `validation_error` (missing or empty `query`).
+
 - `POST /hooks/call-ended` `{workflow_run_id, duration_seconds?, disposition?, transcript_url?, recording_url?}` → 200 `{received: true}`. Dograh's end-of-call Webhook node; values are strings, `""` = not sent, `duration_seconds` is rounded to whole seconds.
   - Upserts one `call_logs` row for the run's `call_session` (Dograh retries deliveries).
   - A run without a call session (its pre-call hook never reached us) is ignored: 200, nothing stored.
   - Transcript and `recording_url` are stored only if the session's elder is `ACTIVE` at that point (includes consent given during the call). Others get metadata only, and the transcript isn't downloaded.
+  - A stored transcript queues memory extraction (`memory_status = pending`); a background job does it later, outside the request. A retried delivery doesn't re-queue a log whose extraction is queued, done or failed.
   - The backend downloads the transcript from `transcript_url`, which must start with `DOGRAH_BASE_URL`.
   - Errors:
     - 401 `unauthorized`.
@@ -77,6 +89,8 @@ Checked against docs.dograh.com on 2026-10-29. Verified against the Dograh `1.50
 - HTTP tool Preset Parameters use `{{initial_context.key}}` (body for POST, query for GET); `initial_context.workflow_run_id` is reserved.
   - Use the `initial_context.` prefix: a bare `{{key}}` can be shadowed by LLM-gathered variables.
   - The tool test panel sends preset values as typed, without rendering templates.
+- HTTP tool body (POST, no `body_template`): LLM parameters and resolved presets as one flat JSON object. LLM arguments override presets of the same name, so a tool never declares an LLM parameter named like a preset (verified in the `dograh-api 1.50.0` source, `custom_tool.py`, 2026-11-09).
+- Tool `messages`: `start` text is spoken when the tool starts; a `delayed` text (`after_ms`) is spoken only while the tool is still running at that time (`tool_messages.py`).
 - Tools get `status_code` + parsed body as `data`; ≥ 400 → `status: "error"`. Default tool timeout 5000 ms.
 - End-of-call **Webhook node** (verified in the `dograh-v1.50.0` source, 2026-11-06):
   - **Node:** `type: "webhook"`, not connected by edges. Fields: `endpoint_url`, `http_method`, `credential_uuid` (same auth header as the pre-call hook), `custom_headers`, `payload_template`.

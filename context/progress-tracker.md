@@ -4,11 +4,11 @@ Update after every meaningful implementation change.
 
 ## Current phase
 
-- Week 2 (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07.
+- Week 3 (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07, Week 2 (memory across calls, knowledge base search) finished 2026-11-09.
 
 ## Current goal
 
-- Week 2: not planned yet.
+- Week 3: not planned yet. The scam engine reuses the hybrid search (`app/services/rag/search.py`).
 
 ## Completed
 
@@ -27,6 +27,13 @@ Update after every meaningful implementation change.
 | `UI-02` | Public copy: family sees call time/duration only, no call summaries | Lint + build; `/`, `/demo` at 1440/390 |
 | `CALL-01a` | End-of-call webhook `/hooks/call-ended` → `call_logs` (`87d572f79894`); transcript for consented callers only | 134 tests; real Dograh transcript format |
 | `CALL-01b` | Dograh Webhook node → `/hooks/call-ended` (workflow v13), export in `dograh/` | Text chat: ACTIVE → transcript, unknown → metadata only; deliveries `succeeded` |
+| `LLM-01` | Gemini client (`app/llm/`): JSON output validated by Pydantic, 768-dim embeddings, fake for tests | Mocked-HTTP tests; live smoke (`pytest -m live`) vs Gemini |
+| `MEM-01` | `memories` (`45022702e0a4`) + post-call extraction job (APScheduler, Gemini → Pydantic → embed) | Tests; voice call → 3 memories 26 s after the call ends; category fix checked by a rolled-back re-run |
+| `MEM-02a` | Pre-call hook adds `memory_summary` + `frequent_places` for ACTIVE callers (no LLM) | 174 tests; hook 9–13 ms warm (105 ms cold) with 100 memories |
+| `MEM-02b` | Dograh prompt uses the memory keys (workflow v14) | Criterion 4 by voice: call 2 recalled the back pain and Bạch Mai |
+| `RAG-01` | KB documents/chunks (`29dd51ed62b1`), hybrid search (full-text + trigram + vector, RRF), 3 sample docs + seed | 203 tests; real embeddings: 6/6 related questions → right doc, 2/2 unrelated → nothing |
+| `RAG-02a` | Tool `POST /tools/search-knowledge`: top 3 KB chunks for any live call | 215 tests; dev backend, real embeddings: emergency/OTP/cost questions → right doc, gold price → nothing; 0.4–0.75 s |
+| `RAG-02b` | Dograh `search_knowledge` tool + prompt for every caller (workflow v16) | Text chat, ACTIVE + unknown: 115, OTP, cost/features from KB; gold price not invented; tool 0.5–0.8 s. Voice check skipped (user decision) |
 
 ## In progress
 
@@ -38,13 +45,13 @@ Update after every meaningful implementation change.
 
 ## Backlog (unscheduled)
 
+- Admin KB page: add and manage KB documents, embedded and indexed on save (the admin half of criterion 8; reuses `app/services/rag/ingest.py`). To be planned.
 - OSRM service in `infra/docker-compose.yml`, with the ride units.
 - Web call simulation page; point `/demo` "Mở trang gọi thử" at it.
 - Public "Tầm nhìn" / "Tài nguyên" pages (waiting for design).
 
 ## Open questions
 
-- Embedding dims: 768 vs 1536.
 - Geocoding: self-hosted Nominatim/Photon vs Goong API.
 - Real telephony provider (if time allows) and its caller ID format.
 - In-call scam check trigger: per turn vs every N turns.
@@ -60,6 +67,8 @@ Update after every meaningful implementation change.
 - Per-call `session_token` via Preset Parameter: LLM can't spoof identity.
 - Self-built Ride Simulator, no Karhoo: no third-party dependency, full test control.
 - Hybrid search in PostgreSQL: no extra infra, tolerant to STT errors.
+- KB search open to every live call, unknown and pending-consent callers included: the KB holds no personal data, and callers can ask about the service before consenting.
+- Embeddings: `gemini-embedding-001` at 768 dims for memories and KB: smaller HNSW index, enough for short Vietnamese text. Changing it means a full re-index.
 - Telegram for urgent alerts, Email for reports: email too slow for scam alerts.
 - Scam check split: real-time in-call + async post-call memory extraction.
 - Registration of a taken number returns 202 `link_requested`: tells the requester the number is registered (no personal data); accepted as inherent to the spec.
@@ -87,5 +96,7 @@ Update after every meaningful implementation change.
 - Dograh: pre-call hook times out after 10s; web calls need hook mode `Always` + a `caller_number` context variable; greetings need a fallback for missing variables. The tool test panel sends preset values as typed (no `{{initial_context.*}}` rendering): paste a real `session_token` from the hook. Ending a text chat (`.../end`) needs body `{"expected_revision": n}`; without it the run never completes and no end-of-call webhook is sent.
 
 - Dograh workflow: signing up on the self-host calls Dograh's cloud (managed service key, billing account, SIP), and the org default routes LLM/STT/TTS/embeddings through that managed connection. Any saved change, Context Variables included, creates a draft: publish it. Edge labels become LLM function names (non-ASCII → `_`), so use ASCII `snake_case` labels. Text chat speaks only the greeting, and the prompt's first turn waits for the caller. Gemini free tier is 20 requests/day per model.
+
+- Dograh runs and tools: tool calls (name, LLM arguments, result, timestamps) are in `workflow_runs.logs -> realtime_feedback_events` (`rtf-function-call-start`/`-end`); text chats leave `logs.conversation` empty (query in `dograh/README.md`). Tools are loaded by UUID at run time, so tool edits need no workflow publish. Descriptions pasted from the JSON exports must drop the JSON escapes (`\"`).
 
 - Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` to print Vietnamese.

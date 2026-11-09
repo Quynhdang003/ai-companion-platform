@@ -1,11 +1,12 @@
 # dograh
 
-Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`): exported workflow, prompts and HTTP tool definitions. Docs/config only, not application code. No secrets: instance-specific IDs are placeholders (`<CREDENTIAL_UUID>`, `<TOOL_UUID>`).
+Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`): exported workflow, prompts and HTTP tool definitions. Docs/config only, not application code. No secrets: instance-specific IDs are placeholders (`<CREDENTIAL_UUID>`, `<CONFIRM_ACTIVATION_TOOL_UUID>`, `<SEARCH_KNOWLEDGE_TOOL_UUID>`).
 
 | Path | What |
 |---|---|
-| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
+| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b; published as v16): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
 | `tools/confirm_activation.json` | HTTP tool body for `POST /api/v1/tools/`. |
+| `tools/search_knowledge.json` | HTTP tool body for `POST /api/v1/tools/` (RAG-02b). |
 | `prompts/*.md` | Readable copies of the prompts in the workflow JSON (regenerate when the JSON changes). |
 
 ## What the workflow does
@@ -13,12 +14,14 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
 - **Start Call** node: pre-call data fetch mode `Always` → `POST http://host.docker.internal:8000/hooks/pre-call` (Bearer credential). The response's `initial_context` keys are listed in `context/api-contracts.md`.
 - Greeting (TTS, no LLM wait): `Dạ, con chào {{preferred_name | bác}} ạ.` → name for `active`, "bác" for everyone else.
 - The prompt branches on `{{caller_status | unknown}}`:
-  - `active`: chat by preferred name.
+  - `active`: chat by preferred name, using `{{memory_summary | chưa có}}` and `{{frequent_places | chưa có}}` from the pre-call hook (MEM-02b) naturally, without reading them out.
   - `pending_consent`: says the number was registered by `{{registered_by | người thân của bác}}`, explains briefly, asks for consent. It calls `confirm_activation` only after a clear yes, then reads back the tool's `message`.
-  - `unknown` or missing: generic greeting, no personal data, no tool calls.
-- **Global** node: tone (Vietnamese, "con"/"bác", one or two short sentences per turn) and safety rules (never ask for or repeat phone numbers or identifiers, no claims about the service beyond the prompt).
+  - `unknown` or missing: generic greeting, no personal data, no `confirm_activation`.
+  - Any status (RAG-02b): questions about the service, scams or emergency numbers → `search_knowledge` with the question rewritten short. The agent answers in one or two sentences from `results`, or says `message` when nothing is found. A pending caller can ask about the service this way before consenting.
+- **Global** node: tone (Vietnamese, "con"/"bác", one or two short sentences per turn) and safety rules (never ask for or repeat the caller's phone number or identifiers; emergency numbers from `search_knowledge` may be said; no claims about the service beyond the prompt and `search_knowledge` results).
 - **End Call** node via edge `ket_thuc_cuoc_goi`.
 - Tool `confirm_activation`: no LLM parameters. A single Preset Parameter `session_token = {{initial_context.session_token}}`, so the LLM can't supply identity.
+- Tool `search_knowledge` → `POST /tools/search-knowledge`: one LLM parameter `query` and the same `session_token` preset. Dograh lets LLM arguments override presets of the same name, so the tool never declares a `session_token` parameter. If the tool is still running after 1.5 s, the agent says "Dạ, con tìm một chút ạ." (a `delayed` tool message).
 - **Webhook** node `Báo backend khi kết thúc` (not connected by edges; Dograh sends it after every run ends): `POST http://host.docker.internal:8000/hooks/call-ended`, same Bearer credential.
   - The payload template sends `workflow_run_id`, `duration_seconds`, `disposition`, `transcript_url` and `recording_url`. It never sends `session_token` or `initial_context`.
   - The backend downloads the transcript itself, for consented callers only (`context/api-contracts.md`).
@@ -29,16 +32,23 @@ Prerequisites: the stack is running (`infra/`, README "Dograh"), and the backend
 
 In the Dograh UI (http://localhost:3010):
 
-1. **Credential** (used by both the hook and the tool): type *Bearer token*, name `ai-companion-backend`, token = `DOGRAH_API_KEY`.
+1. **Credential** (used by the hooks and both tools): type *Bearer token*, name `ai-companion-backend`, token = `DOGRAH_API_KEY`.
 2. **Providers**: none needed. The workflow uses the Dograh-managed connection (created when you sign up on the self-host) for LLM, STT and TTS. Optional: *Google* (AI Studio, not Vertex), name `Gemini`, API key, as used in DG-01b's text-chat tests.
-3. **Tool**: create an HTTP API tool from `tools/confirm_activation.json`:
-   - Method `POST`, URL `http://host.docker.internal:8000/tools/confirm-activation`, authentication = the credential.
-   - No parameters. One preset parameter `session_token` (string, required) = `{{initial_context.session_token}}`.
+3. **Tools**: create two HTTP API tools, both with authentication = the credential:
+   - `tools/confirm_activation.json`: method `POST`, URL `http://host.docker.internal:8000/tools/confirm-activation`. No parameters. One preset parameter `session_token` (string, required) = `{{initial_context.session_token}}`.
+   - `tools/search_knowledge.json`: method `POST`, URL `http://host.docker.internal:8000/tools/search-knowledge`, timeout 5000 ms.
+     - One parameter `query` (string, required) with the description from the JSON.
+     - The same preset parameter `session_token`.
+     - Description: copy it from the JSON.
+     - Message: event *delayed*, after 1500 ms, text "Dạ, con tìm một chút ạ."
+   - When copying a description from a JSON file into the UI, paste the plain text: `\"` becomes `"`.
+   - Tool edits apply to new calls right away: Dograh loads tools by UUID at run time, so there is no workflow publish.
+   - The dev KB must be seeded (`cd backend && uv run python -m scripts.seed_kb`).
 4. **Workflow**: create it from `workflows/identity-consent.json` (API below). The UI builder has the same fields:
-   - Start Call → pre-call data fetch, greeting, prompt, tools.
+   - Start Call → pre-call data fetch, greeting, prompt, tools (both).
    - Webhook node → URL, method, credential, payload.
    - Settings → **Context Variables**: `caller_number` (+ empty `called_number`). Dograh sends these as `from_number` / `to_number` for web and text test calls.
-   - **Model configuration** (workflow override, as published in version 13):
+   - **Model configuration** (workflow override, as published in version 16):
      - LLM, STT and TTS use the Dograh-managed connection (`Dograh`).
      - LLM model `default`; STT language `vi`; TTS voice `dg_voice_f6111af0943623935399` ("Ngoc - Diligent Resolver", Vietnamese).
      - Voice calls run on this config since DG-01c (Azure Speech dropped). DG-01b's text-chat tests used LLM = `Gemini` (`gemini-3.5-flash`).
@@ -50,9 +60,11 @@ Same steps over the API (`TOKEN` from `POST /api/v1/auth/login`):
 API=http://localhost:8010/api/v1; AUTH="Authorization: Bearer $TOKEN"
 curl -s -X POST $API/credentials/ -H "$AUTH" -H 'Content-Type: application/json' \
   -d '{"name":"ai-companion-backend","credential_type":"bearer_token","credential_data":{"token":"<DOGRAH_API_KEY>"}}'   # -> uuid
-sed 's/<CREDENTIAL_UUID>/<uuid>/' tools/confirm_activation.json \
-  | curl -s -X POST $API/tools/ -H "$AUTH" -H 'Content-Type: application/json' -d @-                                       # -> tool_uuid
-# workflow: replace both placeholders, send {name, workflow_definition} to create/definition,
+for tool in confirm_activation search_knowledge; do
+  sed 's/<CREDENTIAL_UUID>/<uuid>/' tools/$tool.json \
+    | curl -s -X POST $API/tools/ -H "$AUTH" -H 'Content-Type: application/json' -d @-                                     # -> tool_uuid
+done
+# workflow: replace the three placeholders, send {name, workflow_definition} to create/definition,
 # then PUT $API/workflow/<id> with {"template_context_variables": {...}} and
 # {"workflow_configurations": {"model_configuration_override": {...}}} (LLM/STT/TTS above),
 # then POST $API/workflow/<id>/validate and POST $API/workflow/<id>/publish.
@@ -88,7 +100,7 @@ SELECT pending.id, fam.id, 'owner' FROM pending, fam;
 COMMIT;
 
 -- Re-run the consent test:
-UPDATE elders SET status = 'PENDING_VERIFICATION', consent_at = NULL WHERE phone_e164 = '+84912000002';
+UPDATE elders SET status = 'PENDING_VERIFICATION', consent_at = NULL WHERE phone_e164 = '+84967877505';
 
 -- Check after the consent test:
 SELECT phone_e164, status, consent_at FROM elders WHERE phone_e164 = '+84912000002';
@@ -123,6 +135,30 @@ SELECT s.workflow_run_id, s.from_number, l.duration_seconds, l.disposition,
 FROM call_logs l JOIN call_sessions s ON s.id = l.call_session_id ORDER BY l.created_at DESC;
 -- Dograh DB: docker exec -i ai-companion-dograh-postgres-1 psql -U postgres -d postgres
 SELECT workflow_run_id, status, attempt_count, last_status_code FROM webhook_deliveries ORDER BY id DESC;
+```
+
+**Memory across calls** (MEM-02b, criterion 4; backend running with `GEMINI_API_KEY`):
+1. Call as an ACTIVE elder and mention something durable, e.g. "tuần sau bác đi khám ở Bệnh viện Bạch Mai". Hang up.
+2. Within ~30 s the memory job sets the call's `call_logs.memory_status = done` and adds `memories` rows (`SELECT category, subject, content FROM memories`).
+3. Call again: the run's `initial_context` has `memory_summary` (and `frequent_places` once a place is known). Ask "con có nhớ bác hay đi khám ở đâu không?": the agent answers from them.
+
+**Knowledge base** (RAG-02b, criterion 8 without the admin UI; dev KB seeded, backend running with `GEMINI_API_KEY`):
+1. Call as `+84912000001` (ACTIVE) and ask:
+   - "Số gọi cấp cứu là số mấy hả con?" → the agent says 115.
+   - "Ngân hàng gọi hỏi mã OTP thì sao?" → don't give the OTP; the bank never asks for it.
+   - "Giá vàng hôm nay bao nhiêu?" → "con chưa có thông tin…", no made-up price. This topic is outside the tool's description, so the agent may answer without calling it.
+2. Call as `+84912000009` (unknown) and ask "Dịch vụ này có mất phí không?" → ask the relative who registered. Still no name and no `confirm_activation`.
+3. Each KB question shows one `search_knowledge` call with a short Vietnamese `query`, and the backend log shows `POST /tools/search-knowledge` 200.
+
+Tool calls are in the run's `logs.realtime_feedback_events` (`rtf-function-call-start` / `-end`) for text chats and voice calls alike. Text chats leave `logs.conversation` empty.
+
+```sql
+-- Dograh DB: tool calls of the latest runs
+SELECT r.id AS run, r.mode, e->'payload'->>'function_name' AS tool,
+       e->'payload'->'arguments'->>'query' AS query
+FROM workflow_runs r, json_array_elements(r.logs->'realtime_feedback_events') e
+WHERE e->>'type' = 'rtf-function-call-start'
+ORDER BY r.id DESC, e->>'timestamp' LIMIT 10;
 ```
 
 **Tool test panel**: it sends preset values exactly as typed and does **not** render `{{initial_context.*}}`. A literal template gets 401 `invalid_session`. To test, call the pre-call hook for a test number and paste the returned `session_token`. Live calls render the preset from the call's `initial_context`.
