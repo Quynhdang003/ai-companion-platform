@@ -34,13 +34,15 @@ Update after every meaningful implementation change.
 | `RAG-01` | KB documents/chunks (`29dd51ed62b1`), hybrid search (full-text + trigram + vector, RRF), 3 sample docs + seed | 203 tests; real embeddings: 6/6 related questions → right doc, 2/2 unrelated → nothing |
 | `RAG-02a` | Tool `POST /tools/search-knowledge`: top 3 KB chunks for any live call | 215 tests; dev backend, real embeddings: emergency/OTP/cost questions → right doc, gold price → nothing; 0.4–0.75 s |
 
+| `RAG-02b` | Dograh `search_knowledge` tool + prompt for every caller (workflow v16) | Text chat, ACTIVE + unknown: 115, OTP, cost/features from KB; gold price not invented; tool 0.5–0.8 s. Voice not yet |
+
 ## In progress
 
-- `RAG-02b`: Dograh `search_knowledge` tool + prompt; answer from a sample document by call.
+- None.
 
 ## Next
 
-- None.
+- `RAG-02c`: voice web call with a KB question (STT path into `search_knowledge`).
 
 ## Backlog (unscheduled)
 
@@ -93,5 +95,7 @@ Update after every meaningful implementation change.
 - Dograh: pre-call hook times out after 10s; web calls need hook mode `Always` + a `caller_number` context variable; greetings need a fallback for missing variables. The tool test panel sends preset values as typed (no `{{initial_context.*}}` rendering): paste a real `session_token` from the hook. Ending a text chat (`.../end`) needs body `{"expected_revision": n}`; without it the run never completes and no end-of-call webhook is sent.
 
 - Dograh workflow: signing up on the self-host calls Dograh's cloud (managed service key, billing account, SIP), and the org default routes LLM/STT/TTS/embeddings through that managed connection. Any saved change, Context Variables included, creates a draft: publish it. Edge labels become LLM function names (non-ASCII → `_`), so use ASCII `snake_case` labels. Text chat speaks only the greeting, and the prompt's first turn waits for the caller. Gemini free tier is 20 requests/day per model.
+
+- Dograh runs and tools: tool calls (name, LLM arguments, result, timestamps) are in `workflow_runs.logs -> realtime_feedback_events` (`rtf-function-call-start`/`-end`); text chats leave `logs.conversation` empty (query in `dograh/README.md`). Tools are loaded by UUID at run time, so tool edits need no workflow publish. Descriptions pasted from the JSON exports must drop the JSON escapes (`\"`).
 
 - Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` to print Vietnamese.
