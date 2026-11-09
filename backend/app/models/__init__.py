@@ -6,7 +6,7 @@ from app.models.elder_family import ElderFamily, FamilyRole
 from app.models.elder_link_request import ElderLinkRequest, LinkRequestStatus
 from app.models.kb import KbChunk, KbDocument
 from app.models.memory import Memory, MemoryCategory
-from app.models.scam import ScamPattern, ScamType
+from app.models.scam import RiskLevel, ScamPattern, ScamType
 from app.models.user import User, UserRole
 
 __all__ = [
@@ -24,6 +24,7 @@ __all__ = [
     "Memory",
     "MemoryCategory",
     "MemoryStatus",
+    "RiskLevel",
     "ScamPattern",
     "ScamType",
     "User",

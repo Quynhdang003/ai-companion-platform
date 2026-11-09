@@ -35,6 +35,7 @@ Update after every meaningful implementation change.
 | `RAG-02a` | Tool `POST /tools/search-knowledge`: top 3 KB chunks for any live call | 215 tests; dev backend, real embeddings: emergency/OTP/cost questions → right doc, gold price → nothing; 0.4–0.75 s |
 | `RAG-02b` | Dograh `search_knowledge` tool + prompt for every caller (workflow v16) | Text chat, ACTIVE + unknown: 115, OTP, cost/features from KB; gold price not invented; tool 0.5–0.8 s. Voice check skipped (user decision) |
 | `SCAM-01` | Scam types, `scam_patterns` (`4b3ed2a15c4a`) + 27 seed patterns, hybrid search (word pairs + vector, RRF) | 247 tests; real embeddings: 16/16 situations → right type first, 4/5 one-liners, 3/3 unrelated → nothing |
+| `SCAM-02` | Labelled test set (53 cases) + layer-1 rules: 21 signals, 8 decisive rules, type from weighted cues | 381 tests; on the set: 22/35 high decisive, 0 decisive on non-high, every high ≥ medium, every none ≤ low (optimistic: rules and set written together) |
 
 ## In progress
 
@@ -42,8 +43,7 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- `SCAM-02`: labelled test set (high-risk cases per type, benign look-alikes, STT spellings without diacritics) + layer-1 rules (accent-folded phrases → signal codes, type, level; no DB, no LLM).
-- `SCAM-03`: layer 2 (Gemini JSON `{risk_level, scam_type, signals, reason}` over the top patterns) + engine merge: decisive rules skip the LLM, the level never drops below layer 1, an LLM error or overrun falls back to layer 1. `scripts.eval_scam` reports per-type recall and false positives on the test set.
+- `SCAM-03`: layer 2 (Gemini JSON `{risk_level, scam_type, signals, reason}` over the top patterns) + engine merge: a decisive rule (high) skips the LLM; otherwise the LLM decides, with the layer-1 signals as hints; an LLM error or overrun falls back to layer 1. `scripts.eval_scam` reports per-type recall and false positives on the test set.
 - `SCAM-04a`: `scam_events` table + tool `POST /tools/check-scam` `{session_token, situation}`. Every caller gets a templated spoken warning. For ACTIVE elders it stores type, level and signal codes (no call text); high risk → `alert_status = pending`.
 - `SCAM-04b`: Dograh `check_scam` tool + prompt (when to call it, how to warn), workflow v17; text chat: one case per type + benign cases.
 - `NOTI-01a`: `NotificationChannel` + Telegram bot channel. Family members link Telegram with a one-time deep link (`/start <token>`, read by a `getUpdates` polling job, no public URL needed); routes to link, check status, unlink.

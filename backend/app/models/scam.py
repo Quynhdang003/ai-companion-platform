@@ -26,6 +26,30 @@ class ScamType(StrEnum):
     OTHER = "other"
 
 
+class RiskLevel(StrEnum):
+    """How likely what the caller describes is a scam, lowest first.
+
+    - high: a clear scam: money, codes, personal data or an app/link is asked for under a
+      scam story or pressure. The family is alerted.
+    - medium: signs of a scam (a scam story, pressure, claims too good to be true), but
+      nothing asked yet, or not clear enough to be sure.
+    - low: unusual but probably harmless; the caller is told to be careful.
+    - none: no sign of a scam.
+    """
+
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+    @property
+    def rank(self) -> int:
+        return _LEVEL_ORDER.index(self)
+
+
+_LEVEL_ORDER = list(RiskLevel)
+
+
 def scam_type_column() -> Enum:
     # Room for longer type names added later without widening the column.
     return Enum(
