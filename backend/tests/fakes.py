@@ -1,5 +1,6 @@
 """Test doubles for external services."""
 
+import asyncio
 import hashlib
 import math
 import random
@@ -55,3 +56,25 @@ class FakeLLMClient:
             raise self.embed_error
         self.embedded.append((list(texts), task))
         return [fake_vector(text) for text in texts]
+
+
+class QueryVectorLLM(FakeLLMClient):
+    """Embeds every query as `query_as`, to exercise a vector ranking alone."""
+
+    def __init__(self, query_as: str) -> None:
+        super().__init__()
+        self.query_as = query_as
+
+    async def embed(self, texts: Sequence[str], *, task: EmbedTask) -> list[list[float]]:
+        if task == "query":
+            return [fake_vector(self.query_as) for _ in texts]
+        return await super().embed(texts, task=task)
+
+
+class SlowLLM(FakeLLMClient):
+    """Query embeddings take a second, longer than the search timeouts used in tests."""
+
+    async def embed(self, texts: Sequence[str], *, task: EmbedTask) -> list[list[float]]:
+        if task == "query":
+            await asyncio.sleep(1)
+        return await super().embed(texts, task=task)

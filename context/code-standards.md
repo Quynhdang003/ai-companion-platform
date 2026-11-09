@@ -66,7 +66,10 @@
 - Store tokens hashed; never log tokens, phone numbers or transcripts in plain logs.
 - Nullable JSONB columns use `JSONB(none_as_null=True)`: by default SQLAlchemy writes Python `None` as JSON `null`, which `IS NULL` doesn't match.
 - Accent-free text search: generated columns and indexes call `immutable_unaccent()` (from the KB migration; `unaccent` itself isn't IMMUTABLE). In Python, `fold()` (`app/services/rag/search.py`) strips diacritics the same way.
-- Hybrid search (`app/services/rag/search.py`): each ranking keeps only relevant rows (full-text word coverage, trigram threshold, max vector distance), then `rrf_merge` fuses them; the query embedding has a short timeout and falls back to lexical search. New searchable corpora (scam patterns) reuse `query_words`, `fold` and `rrf_merge`, and get thresholds calibrated with real embeddings.
+- Hybrid search (`app/services/rag/search.py`): each ranking keeps only relevant rows (full-text word coverage, trigram threshold, max vector distance), then `rrf_merge` fuses them; the query embedding has a short timeout (`embed_query`) and falls back to lexical search. New searchable corpora reuse `words`, `fold`, `rrf_merge` and `embed_query`, and get thresholds calibrated with real embeddings.
+  - Scam patterns (`app/services/scam/search.py`) are searched with a situation of a few sentences, not a question: phrase queries on word pairs (`word_pairs`, function words dropped) + vector, no trigram.
+- Columns holding a scam type use `scam_type_column()` (`app/models/scam.py`), so every table shares the same values and its `CHECK` widens in one migration when a type is added.
+- Seed data lives in `backend/data/`, loaded by a re-runnable script that skips unchanged rows (`scripts.seed_kb`; `scripts.seed_scam_patterns` embeds all new and changed patterns in one request).
 
 ## File organization
 

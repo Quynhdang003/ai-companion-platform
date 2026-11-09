@@ -8,7 +8,7 @@ Update after every meaningful implementation change.
 
 ## Current goal
 
-- Week 3: not planned yet. The scam engine reuses the hybrid search (`app/services/rag/search.py`).
+- Week 3: scam detection during calls (criterion 5). The agent calls `check_scam` when the caller tells it about a suspicious call or request. A two-layer engine (rules, then Gemini with retrieved scam patterns) returns a spoken warning; on high risk the elder's family gets a Telegram alert (type, level, time only). Reuses the hybrid search helpers (`app/services/rag/search.py`) and the background job pattern (`app/services/memory/job.py`).
 
 ## Completed
 
@@ -34,6 +34,7 @@ Update after every meaningful implementation change.
 | `RAG-01` | KB documents/chunks (`29dd51ed62b1`), hybrid search (full-text + trigram + vector, RRF), 3 sample docs + seed | 203 tests; real embeddings: 6/6 related questions → right doc, 2/2 unrelated → nothing |
 | `RAG-02a` | Tool `POST /tools/search-knowledge`: top 3 KB chunks for any live call | 215 tests; dev backend, real embeddings: emergency/OTP/cost questions → right doc, gold price → nothing; 0.4–0.75 s |
 | `RAG-02b` | Dograh `search_knowledge` tool + prompt for every caller (workflow v16) | Text chat, ACTIVE + unknown: 115, OTP, cost/features from KB; gold price not invented; tool 0.5–0.8 s. Voice check skipped (user decision) |
+| `SCAM-01` | Scam types, `scam_patterns` (`4b3ed2a15c4a`) + 27 seed patterns, hybrid search (word pairs + vector, RRF) | 247 tests; real embeddings: 16/16 situations → right type first, 4/5 one-liners, 3/3 unrelated → nothing |
 
 ## In progress
 
@@ -41,11 +42,19 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- None scheduled.
+- `SCAM-02`: labelled test set (high-risk cases per type, benign look-alikes, STT spellings without diacritics) + layer-1 rules (accent-folded phrases → signal codes, type, level; no DB, no LLM).
+- `SCAM-03`: layer 2 (Gemini JSON `{risk_level, scam_type, signals, reason}` over the top patterns) + engine merge: decisive rules skip the LLM, the level never drops below layer 1, an LLM error or overrun falls back to layer 1. `scripts.eval_scam` reports per-type recall and false positives on the test set.
+- `SCAM-04a`: `scam_events` table + tool `POST /tools/check-scam` `{session_token, situation}`. Every caller gets a templated spoken warning. For ACTIVE elders it stores type, level and signal codes (no call text); high risk → `alert_status = pending`.
+- `SCAM-04b`: Dograh `check_scam` tool + prompt (when to call it, how to warn), workflow v17; text chat: one case per type + benign cases.
+- `NOTI-01a`: `NotificationChannel` + Telegram bot channel. Family members link Telegram with a one-time deep link (`/start <token>`, read by a `getUpdates` polling job, no public URL needed); routes to link, check status, unlink.
+- `NOTI-01b`: dashboard card to connect and disconnect Telegram.
+- `NOTI-02`: alert job: pending high-risk events → Telegram to every linked family member who connected it (elder name, type, level, time; one alert per call and type); retries, then `failed`. End-to-end: a scam case in text chat → Telegram on a phone (criterion 5).
+- `SCAM-05` (if time allows): post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
 
 ## Backlog (unscheduled)
 
 - Admin KB page: add and manage KB documents, embedded and indexed on save (the admin half of criterion 8; reuses `app/services/rag/ingest.py`). To be planned.
+- Admin scam patterns page: add and edit patterns per scam type (reuses `sync_patterns` in `app/services/scam/patterns.py`). To be planned with the admin KB page.
 - OSRM service in `infra/docker-compose.yml`, with the ride units.
 - Web call simulation page; point `/demo` "Mở trang gọi thử" at it.
 - Public "Tầm nhìn" / "Tài nguyên" pages (waiting for design).
@@ -54,7 +63,6 @@ Update after every meaningful implementation change.
 
 - Geocoding: self-hosted Nominatim/Photon vs Goong API.
 - Real telephony provider (if time allows) and its caller ID format.
-- In-call scam check trigger: per turn vs every N turns.
 - Data retention period for transcripts and recordings.
 - Public demo hotline number for `/demo` (depends on real telephony), and whether the footer should name the university.
 - Orphaned elders: if an owner deletes their account, the elder stays but pending link requests have nobody to approve them.
@@ -71,6 +79,10 @@ Update after every meaningful implementation change.
 - Embeddings: `gemini-embedding-001` at 768 dims for memories and KB: smaller HNSW index, enough for short Vietnamese text. Changing it means a full re-index.
 - Telegram for urgent alerts, Email for reports: email too slow for scam alerts.
 - Scam check split: real-time in-call + async post-call memory extraction.
+- In-call scam check is a tool the agent calls (`check_scam`), not a per-turn check: Dograh 1.50.0 has no per-turn backend hook (node types: `startCall`, `agentNode`, `endCall`, `globalNode`, `webhook`, `trigger`, `qa`). The agent calls it when the caller tells it about a suspicious call or request; the post-call scan (`SCAM-05`) catches what it misses.
+- Scam types: 7 (police, bank and relative impersonation, investment, health products, resort contracts, fake charity) + `other`, matching the KB scam doc; more can be added later (a migration widens the `CHECK`).
+- Scam classification uses its own Gemini model (`GEMINI_SCAM_MODEL`): the free tier's 20 requests/day per model then isn't shared with memory extraction.
+- Every caller gets the scam warning (no personal data needed), but only ACTIVE elders (consent given) get stored scam events and family alerts.
 - Registration of a taken number returns 202 `link_requested`: tells the requester the number is registered (no personal data); accepted as inherent to the spec.
 - Family sees call metadata + scam alerts only, never transcripts or memories; no per-call summaries: elder privacy; content stays for memory and scam analysis.
 - Dograh-managed LLM/STT/TTS for calls (voice "Ngoc"), no Azure or Gemini provider: vi-VN works without extra provider keys; calls depend on Dograh's cloud service.

@@ -12,8 +12,8 @@ The thresholds were calibrated on the sample KB with real Gemini embeddings: rel
 questions sit at distance 0.22-0.37, unrelated ones (weather, gold price) at 0.41-0.44.
 
 The query embedding runs alongside the SQL queries with a short timeout; if it fails or is
-late, the search falls back to the two lexical rankings. `rrf_merge`, `fold` and
-`query_words` are meant to be reused by other corpora (scam patterns).
+late, the search falls back to the two lexical rankings. `rrf_merge`, `fold`, `words`,
+`query_words` and `embed_query` are reused by other corpora (scam patterns).
 """
 
 import asyncio
@@ -74,13 +74,18 @@ def fold(text: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
 
 
+def words(text: str) -> list[str]:
+    """Accent-free lower-case words in order, repeats kept. Only word characters survive,
+    so tsquery operators in the input can't change a query built from them."""
+    return _WORDS.findall(fold(text.lower()))
+
+
 def query_words(query: str) -> list[str]:
     """Distinct accent-free lower-case words, at most MAX_QUERY_WORDS.
 
-    'Bệnh viện ở đâu? Bệnh!' -> ['benh', 'vien', 'o', 'dau']. Only word characters survive,
-    so tsquery operators in the input can't change the query.
+    'Bệnh viện ở đâu? Bệnh!' -> ['benh', 'vien', 'o', 'dau'].
     """
-    return list(dict.fromkeys(_WORDS.findall(fold(query.lower()))))[:MAX_QUERY_WORDS]
+    return list(dict.fromkeys(words(query)))[:MAX_QUERY_WORDS]
 
 
 async def search_kb(
@@ -94,7 +99,7 @@ async def search_kb(
     query = " ".join(query.split())
     if not query:
         return []
-    embedding = asyncio.create_task(_embed_query(llm, query, embed_timeout))
+    embedding = asyncio.create_task(embed_query(llm, query, embed_timeout))
     rankings = [
         await fulltext_ids(db, query, CANDIDATES),
         await trigram_ids(db, query, CANDIDATES),
@@ -176,7 +181,8 @@ async def vector_ids(db: AsyncSession, embedding: list[float], limit: int) -> li
     return list(rows.all())
 
 
-async def _embed_query(llm: LLMClient, query: str, timeout: float) -> list[float] | None:
+async def embed_query(llm: LLMClient, query: str, timeout: float) -> list[float] | None:
+    """The query's vector, or None (logged) if embedding fails or takes over `timeout`."""
     try:
         [vector] = await asyncio.wait_for(llm.embed([query], task="query"), timeout)
     except (LLMError, TimeoutError) as exc:

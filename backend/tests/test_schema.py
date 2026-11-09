@@ -65,6 +65,11 @@ async def test_non_e164_phone_is_rejected(session: AsyncSession, phone: str) -> 
             "ck_elders_status",
         ),
         ("INSERT INTO users (clerk_user_id, role) VALUES ('u1', 'owner')", "ck_users_role"),
+        (
+            "INSERT INTO scam_patterns (scam_type, title, content, embedding) "
+            "VALUES ('lottery', 'T', 'C', array_fill(0.1, ARRAY[768])::vector)",
+            "ck_scam_patterns_scam_type",
+        ),
     ],
 )
 async def test_unknown_enum_value_is_rejected(
