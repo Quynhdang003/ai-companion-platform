@@ -4,11 +4,11 @@ Update after every meaningful implementation change.
 
 ## Current phase
 
-- Week 2 (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07.
+- Week 3 (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07, Week 2 (memory across calls, knowledge base search) finished 2026-11-09.
 
 ## Current goal
 
-- Week 2: memory across calls (criterion 4) and knowledge base search (backend + Dograh part of criterion 8). The hybrid search is reused by the scam engine in Week 3.
+- Week 3: not planned yet. The scam engine reuses the hybrid search (`app/services/rag/search.py`).
 
 ## Completed
 
@@ -33,7 +33,6 @@ Update after every meaningful implementation change.
 | `MEM-02b` | Dograh prompt uses the memory keys (workflow v14) | Criterion 4 by voice: call 2 recalled the back pain and Bạch Mai |
 | `RAG-01` | KB documents/chunks (`29dd51ed62b1`), hybrid search (full-text + trigram + vector, RRF), 3 sample docs + seed | 203 tests; real embeddings: 6/6 related questions → right doc, 2/2 unrelated → nothing |
 | `RAG-02a` | Tool `POST /tools/search-knowledge`: top 3 KB chunks for any live call | 215 tests; dev backend, real embeddings: emergency/OTP/cost questions → right doc, gold price → nothing; 0.4–0.75 s |
-
 | `RAG-02b` | Dograh `search_knowledge` tool + prompt for every caller (workflow v16) | Text chat, ACTIVE + unknown: 115, OTP, cost/features from KB; gold price not invented; tool 0.5–0.8 s. Voice check skipped (user decision) |
 
 ## In progress
@@ -42,10 +41,11 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- None.
+- None scheduled.
 
 ## Backlog (unscheduled)
 
+- Admin KB page: add and manage KB documents, embedded and indexed on save (the admin half of criterion 8; reuses `app/services/rag/ingest.py`). To be planned.
 - OSRM service in `infra/docker-compose.yml`, with the ride units.
 - Web call simulation page; point `/demo` "Mở trang gọi thử" at it.
 - Public "Tầm nhìn" / "Tài nguyên" pages (waiting for design).
@@ -67,6 +67,7 @@ Update after every meaningful implementation change.
 - Per-call `session_token` via Preset Parameter: LLM can't spoof identity.
 - Self-built Ride Simulator, no Karhoo: no third-party dependency, full test control.
 - Hybrid search in PostgreSQL: no extra infra, tolerant to STT errors.
+- KB search open to every live call, unknown and pending-consent callers included: the KB holds no personal data, and callers can ask about the service before consenting.
 - Embeddings: `gemini-embedding-001` at 768 dims for memories and KB: smaller HNSW index, enough for short Vietnamese text. Changing it means a full re-index.
 - Telegram for urgent alerts, Email for reports: email too slow for scam alerts.
 - Scam check split: real-time in-call + async post-call memory extraction.
