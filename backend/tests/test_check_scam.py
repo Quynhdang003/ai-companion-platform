@@ -219,6 +219,8 @@ def test_no_column_can_hold_what_the_caller_said() -> None:
         "signals",
         "assessed_by",
         "alert_status",
+        "alert_attempts",
+        "alerted_at",
         "created_at",
         "updated_at",
     }

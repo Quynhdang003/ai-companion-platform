@@ -1,8 +1,19 @@
 import uuid
+from datetime import datetime
 from enum import StrEnum
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Computed, Enum, ForeignKey, Index, Text, UniqueConstraint, Uuid, text
+from sqlalchemy import (
+    Computed,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Text,
+    UniqueConstraint,
+    Uuid,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -143,11 +154,12 @@ class AssessedBy(StrEnum):
 
 
 class AlertStatus(StrEnum):
-    """Family alert of a high-risk scam event (Telegram, NOTI-02)."""
+    """Family alert of a high-risk scam event (Telegram, `notification/scam_alerts.py`)."""
 
     PENDING = "pending"
-    SENT = "sent"
-    FAILED = "failed"
+    SENT = "sent"  # at least one family member got it
+    FAILED = "failed"  # every send failed, up to the job's maximum of attempts
+    SKIPPED = "skipped"  # nobody to alert: no family member connected Telegram, or too late
 
 
 def _str_enum(enum: type[StrEnum], name: str) -> Enum:
@@ -192,3 +204,6 @@ class ScamEvent(TimestampMixin, Base):
     assessed_by: Mapped[AssessedBy] = mapped_column(_str_enum(AssessedBy, "assessed_by"))
     # Set to pending when the level becomes high; None = no alert needed.
     alert_status: Mapped[AlertStatus | None] = mapped_column(_str_enum(AlertStatus, "alert_status"))
+    # Alert sends that all failed so far; `failed` once it reaches the job's maximum.
+    alert_attempts: Mapped[int] = mapped_column(server_default=text("0"))
+    alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
