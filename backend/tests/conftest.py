@@ -24,7 +24,7 @@ from app.core.auth import ClerkJWTVerifier, get_verifier
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.dograh_auth import get_dograh_api_key
-from app.llm.client import get_llm_client
+from app.llm.client import get_llm_client, get_scam_llm_client
 from app.main import app
 from app.models import Elder, ElderFamily, ElderStatus, FamilyRole, Memory, MemoryCategory, User
 from tests.fakes import FakeLLMClient, fake_vector
@@ -137,6 +137,7 @@ async def client(session: AsyncSession, rsa_key: rsa.RSAPrivateKey) -> AsyncIter
     app.dependency_overrides[get_dograh_api_key] = lambda: DOGRAH_KEY
     # Routes never reach Gemini in tests; override again to use a specific fake.
     app.dependency_overrides[get_llm_client] = lambda: FakeLLMClient()
+    app.dependency_overrides[get_scam_llm_client] = lambda: FakeLLMClient()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             yield c

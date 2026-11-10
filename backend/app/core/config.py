@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
     llm_timeout_seconds: float = 30.0
+    # Scam classification runs on its own model: on the free tier each model has its own
+    # daily quota, so in-call checks don't share it with memory extraction.
+    gemini_scam_model: str = "gemini-3.5-flash-lite"
+    # Whole in-call scam check (pattern search + classifier); past it, layer-1 rules answer.
+    scam_check_timeout_seconds: float = 4.0
 
     # Background jobs (APScheduler, started with the app). Tests never start them.
     scheduler_enabled: bool = True

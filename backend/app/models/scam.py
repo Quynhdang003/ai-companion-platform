@@ -50,6 +50,39 @@ class RiskLevel(StrEnum):
 _LEVEL_ORDER = list(RiskLevel)
 
 
+class Signal(StrEnum):
+    """A sign of a scam in what the caller describes.
+
+    Layer-1 rules find them from phrases (`app/services/scam/rules.py`), the classifier
+    names them too, and scam events store their codes: never the caller's words.
+    """
+
+    # What the caller is asked to do.
+    MONEY_TRANSFER = "money_transfer"
+    CREDENTIALS = "credentials"  # OTP, password, PIN, card security code
+    PERSONAL_INFO = "personal_info"  # ID or account number, balance, face scan
+    LINK_OR_APP = "link_or_app"
+    SAFE_ACCOUNT = "safe_account"  # money "held for the investigation"
+    PERSONAL_ACCOUNT = "personal_account"  # pay into a private or stranger's account
+    # Pressure.
+    URGENCY = "urgency"
+    SECRECY = "secrecy"
+    THREAT = "threat"
+    # Who they claim to be or what they offer: these point to a scam type.
+    AUTHORITY = "authority"
+    BANK = "bank"
+    RELATIVE = "relative"  # "cháu đây", a new number, a relative's hacked account
+    RELATIVE_EMERGENCY = "relative_emergency"
+    INVESTMENT = "investment"
+    EASY_PROFIT = "easy_profit"
+    HEALTH_PRODUCT = "health_product"
+    MIRACLE_CURE = "miracle_cure"
+    PRIZE = "prize"
+    RESORT = "resort"
+    DONATION = "donation"
+    SERVICE = "service"  # utilities, social insurance, tax, parcels, money sent by mistake
+
+
 def scam_type_column() -> Enum:
     # Room for longer type names added later without widening the column.
     return Enum(

@@ -9,6 +9,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+# Local caches (e.g. scripts.eval_scam verdicts)
+.cache/
 
 # Node / Next.js
 node_modules/
