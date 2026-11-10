@@ -36,7 +36,8 @@ Update after every meaningful implementation change.
 | `RAG-02b` | Dograh `search_knowledge` tool + prompt for every caller (workflow v16) | Text chat, ACTIVE + unknown: 115, OTP, cost/features from KB; gold price not invented; tool 0.5–0.8 s. Voice check skipped (user decision) |
 | `SCAM-01` | Scam types, `scam_patterns` (`4b3ed2a15c4a`) + 27 seed patterns, hybrid search (word pairs + vector, RRF) | 247 tests; real embeddings: 16/16 situations → right type first, 4/5 one-liners, 3/3 unrelated → nothing |
 | `SCAM-02` | Labelled test set (53 cases) + layer-1 rules: 21 signals, 8 decisive rules, type from weighted cues | 381 tests; on the set: 22/35 high decisive, 0 decisive on non-high, every high ≥ medium, every none ≤ low (optimistic: rules and set written together) |
-| `SCAM-03` | Layer 2 (Gemini on its own model) + engine: decisive rule skips it, failures fall back to rules; `scripts.eval_scam` | 404 tests; live on 34/53 cases (`gemini-3.5-flash-lite`, free-tier quota): 31/34 high → high (rules alone 22/35), 34/34 warned with the right type; 3 transient errors fell back to rules; classifier p50 2.1 s, p90 3.8 s (budget 4 s) |
+| `SCAM-03` | Layer 2 (Gemini on its own model) + engine: decisive rule skips it, failures fall back to rules; `scripts.eval_scam` | 404 tests; live on 34/53 cases (`gemini-3.5-flash-lite`, free-tier quota): 31/34 high → high (rules alone 22/35), 34/34 warned with the right type; 3 transient errors fell back to rules; classifier p50 2.1 s, p90 3.8 s (in-call budget: see decisions) |
+| `SCAM-04a` | `scam_events` (`391d115c2959`) + tool `POST /tools/check-scam`: templated warning for every caller, events for ACTIVE medium/high | 477 tests; dev backend + real Gemini: OTP → high by rule (0.02 s, alert `pending`), relative asking money → high by classifier (2.0 s), harmless → none (1.7 s, not stored), unknown caller warned, nothing stored |
 
 ## In progress
 
@@ -45,11 +46,10 @@ Update after every meaningful implementation change.
 ## Next
 
 - `SCAM-03b`: finish the live eval (`uv run python -m scripts.eval_scam`, resumes from its cache): 19 cases left (`other-04` and every medium, low and none case), so the classifier's false alarms on look-alikes are still unmeasured. Also see whether the transient classifier errors repeat (now logged).
-- `SCAM-04a`: `scam_events` table + tool `POST /tools/check-scam` `{session_token, situation}`. Every caller gets a templated spoken warning. For ACTIVE elders it stores type, level and signal codes (no call text); high risk → `alert_status = pending`.
 - `SCAM-04b`: Dograh `check_scam` tool + prompt (when to call it, how to warn), workflow v17; text chat: one case per type + benign cases.
 - `NOTI-01a`: `NotificationChannel` + Telegram bot channel. Family members link Telegram with a one-time deep link (`/start <token>`, read by a `getUpdates` polling job, no public URL needed); routes to link, check status, unlink.
 - `NOTI-01b`: dashboard card to connect and disconnect Telegram.
-- `NOTI-02`: alert job: pending high-risk events → Telegram to every linked family member who connected it (elder name, type, level, time; one alert per call and type); retries, then `failed`. End-to-end: a scam case in text chat → Telegram on a phone (criterion 5).
+- `NOTI-02`: alert job: `scam_events` with `alert_status = pending` → Telegram to every linked family member who connected it (elder name, type, level, time; the table already keeps one event per call and type); retries, then `failed`. End-to-end: a scam case in text chat → Telegram on a phone (criterion 5).
 - `SCAM-05` (if time allows): post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
 
 ## Backlog (unscheduled)
@@ -83,7 +83,7 @@ Update after every meaningful implementation change.
 - In-call scam check is a tool the agent calls (`check_scam`), not a per-turn check: Dograh 1.50.0 has no per-turn backend hook (node types: `startCall`, `agentNode`, `endCall`, `globalNode`, `webhook`, `trigger`, `qa`). The agent calls it when the caller tells it about a suspicious call or request; the post-call scan (`SCAM-05`) catches what it misses.
 - Scam types: 7 (police, bank and relative impersonation, investment, health products, resort contracts, fake charity) + `other`, matching the KB scam doc; more can be added later (a migration widens the `CHECK`).
 - Scam classification uses its own Gemini model (`GEMINI_SCAM_MODEL`, default `gemini-3.5-flash-lite`): the free tier's 20 requests/day per model then isn't shared with memory extraction, and the lite model answers in ~2 s, inside the in-call budget.
-- In-call scam check budget 4 s (`SCAM_CHECK_TIMEOUT_SECONDS`) under Dograh's 5 s tool timeout: past it, or on any LLM error, the layer-1 result is the answer.
+- In-call scam check budget 6 s (`SCAM_CHECK_TIMEOUT_SECONDS`), under the `check_scam` tool's 8 s timeout in Dograh (HTTP tools have no upper limit; the default 5 s was too tight: a first call in a fresh process took 4 s and fell back). Past it, or on any LLM error, the layer-1 result is the answer; a delayed tool message covers the wait.
 - Every caller gets the scam warning (no personal data needed), but only ACTIVE elders (consent given) get stored scam events and family alerts.
 - Registration of a taken number returns 202 `link_requested`: tells the requester the number is registered (no personal data); accepted as inherent to the spec.
 - Family sees call metadata + scam alerts only, never transcripts or memories; no per-call summaries: elder privacy; content stays for memory and scam analysis.

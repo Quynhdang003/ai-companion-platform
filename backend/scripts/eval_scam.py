@@ -32,8 +32,8 @@ from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.llm.client import get_scam_llm_client
 from app.llm.prompts.scam_classification import PROMPT_VERSION
-from app.models import RiskLevel, ScamType
-from app.services.scam.engine import AssessedBy, FallbackReason, assess
+from app.models import AssessedBy, RiskLevel, ScamType
+from app.services.scam.engine import FallbackReason, assess
 from app.services.scam.rules import assess_rules
 from scripts.scam_cases import ScamCase, load_cases
 

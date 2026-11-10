@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models import RiskLevel, ScamType
+
 
 class CallInbound(BaseModel):
     """Call fields of Dograh's pre-call request; `agent_id` and `to_number` are ignored."""
@@ -79,6 +81,27 @@ class SearchKnowledgeOut(BaseModel):
     # Short, speakable Vietnamese; when nothing is found the agent says it as is.
     message: str
     results: list[KnowledgeResult]
+
+
+class CheckScamRequest(SessionToolRequest):
+    # Written by the LLM: what the caller was told or asked, in a few sentences. Never logged
+    # or stored.
+    situation: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("situation")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("situation is blank")
+        return value
+
+
+class CheckScamOut(BaseModel):
+    risk_level: RiskLevel
+    # Set for medium and high only.
+    scam_type: ScamType | None
+    # Short, speakable Vietnamese warning; the agent says it as is.
+    message: str
 
 
 class CallEndedRequest(BaseModel):

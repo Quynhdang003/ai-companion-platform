@@ -60,6 +60,14 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
   - Nothing relevant → 200 with `found: false`, `results: []`. `message` is speakable Vietnamese: "Dạ, con chưa có thông tin về việc này ạ." (not found) or "Dạ, con tìm được thông tin rồi ạ." (found; the agent answers from `results`).
   - Errors: 401 `invalid_session`, 422 `validation_error` (missing or empty `query`).
 
+- `POST /tools/check-scam` `{session_token, situation}` → 200 `{risk_level, scam_type, message}`.
+  - `situation` (1–1000 chars, not blank): what the caller was told or asked, a few sentences written by the LLM; never logged or stored.
+  - `risk_level`: `none` | `low` | `medium` | `high` (definitions on `RiskLevel`, `app/models/scam.py`). `scam_type`: a `ScamType` value for `medium` and `high`, `null` otherwise.
+  - Scam Risk Engine (`app/services/scam/engine.py`): a decisive layer-1 rule answers `high` at once; otherwise the Gemini classifier decides within `SCAM_CHECK_TIMEOUT_SECONDS` (6 s). Past the budget, or on any LLM error, the layer-1 result is returned: never an HTTP error.
+  - `message`: templated speakable Vietnamese (`app/services/scam/warnings.py`), the agent says it as is. `high` / `medium`: "rất có thể là lừa đảo" / "có dấu hiệu lừa đảo" + what to do + one piece of advice for the type. `low` / `none`: be careful / no sign found. It never promises a family alert.
+  - Any caller with a live session gets the warning. Only an ACTIVE elder's `medium` or `high` risk is stored (`scam_events`: type, level, signal codes, who decided; one row per call and type, the level only goes up). The first time it becomes `high`, `alert_status = pending` (family alert, NOTI-02).
+  - Errors: 401 `invalid_session`, 422 `validation_error` (missing, empty or blank `situation`).
+
 - `POST /hooks/call-ended` `{workflow_run_id, duration_seconds?, disposition?, transcript_url?, recording_url?}` → 200 `{received: true}`. Dograh's end-of-call Webhook node; values are strings, `""` = not sent, `duration_seconds` is rounded to whole seconds.
   - Upserts one `call_logs` row for the run's `call_session` (Dograh retries deliveries).
   - A run without a call session (its pre-call hook never reached us) is ignored: 200, nothing stored.

@@ -4,8 +4,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm.client import LLMError, LLMNotConfiguredError, LLMRateLimitedError, SchemaT
-from app.models import RiskLevel, ScamType, Signal
-from app.services.scam.engine import AssessedBy, FallbackReason, assess
+from app.models import AssessedBy, RiskLevel, ScamType, Signal
+from app.services.scam.engine import FallbackReason, assess
 from app.services.scam.patterns import PatternIn, sync_patterns
 from tests.fakes import FakeLLMClient
 

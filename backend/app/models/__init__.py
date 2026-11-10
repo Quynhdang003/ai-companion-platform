@@ -6,10 +6,20 @@ from app.models.elder_family import ElderFamily, FamilyRole
 from app.models.elder_link_request import ElderLinkRequest, LinkRequestStatus
 from app.models.kb import KbChunk, KbDocument
 from app.models.memory import Memory, MemoryCategory
-from app.models.scam import RiskLevel, ScamPattern, ScamType, Signal
+from app.models.scam import (
+    AlertStatus,
+    AssessedBy,
+    RiskLevel,
+    ScamEvent,
+    ScamPattern,
+    ScamType,
+    Signal,
+)
 from app.models.user import User, UserRole
 
 __all__ = [
+    "AlertStatus",
+    "AssessedBy",
     "Base",
     "CallLog",
     "CallSession",
@@ -25,6 +35,7 @@ __all__ = [
     "MemoryCategory",
     "MemoryStatus",
     "RiskLevel",
+    "ScamEvent",
     "ScamPattern",
     "ScamType",
     "Signal",

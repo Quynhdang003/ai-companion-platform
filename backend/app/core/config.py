@@ -40,7 +40,8 @@ class Settings(BaseSettings):
     # daily quota, so in-call checks don't share it with memory extraction.
     gemini_scam_model: str = "gemini-3.5-flash-lite"
     # Whole in-call scam check (pattern search + classifier); past it, layer-1 rules answer.
-    scam_check_timeout_seconds: float = 4.0
+    # Below the check_scam tool's timeout in Dograh (8 s, `dograh/tools/check_scam.json`).
+    scam_check_timeout_seconds: float = 6.0
 
     # Background jobs (APScheduler, started with the app). Tests never start them.
     scheduler_enabled: bool = True

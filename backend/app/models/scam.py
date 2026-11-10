@@ -2,8 +2,8 @@ import uuid
 from enum import StrEnum
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Computed, Enum, ForeignKey, Index, Text, Uuid, text
-from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy import Computed, Enum, ForeignKey, Index, Text, UniqueConstraint, Uuid, text
+from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.llm.embeddings import EMBEDDING_DIMS
@@ -132,3 +132,63 @@ class ScamPattern(TimestampMixin, Base):
         ),
     )
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMS))
+
+
+class AssessedBy(StrEnum):
+    """What decided a scam verdict (`app/services/scam/engine.py`)."""
+
+    RULES = "rules"  # a decisive layer-1 rule
+    LLM = "llm"  # the classifier
+    RULES_FALLBACK = "rules_fallback"  # the classifier failed or ran out of time
+
+
+class AlertStatus(StrEnum):
+    """Family alert of a high-risk scam event (Telegram, NOTI-02)."""
+
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+
+
+def _str_enum(enum: type[StrEnum], name: str) -> Enum:
+    return Enum(
+        enum,
+        name=name,
+        native_enum=False,
+        create_constraint=True,
+        values_callable=lambda e: [m.value for m in e],
+    )
+
+
+class ScamEvent(TimestampMixin, Base):
+    """A scam the elder was warned about during a call: medium or high risk, ACTIVE elders only.
+
+    One row per call and scam type: a later check of the same type in the same call raises
+    the level (never lowers it) and adds its signals. Nothing the caller said is stored:
+    only the type, the level, signal codes and who decided. `created_at` is when the elder
+    was first warned. Family sees these (type, level, time); high risk alerts them.
+    """
+
+    __tablename__ = "scam_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "call_session_id", "scam_type", name="uq_scam_events_call_session_id_scam_type"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    call_session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("call_sessions.id", ondelete="CASCADE")
+    )
+    elder_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("elders.id", ondelete="CASCADE"), index=True
+    )
+    scam_type: Mapped[ScamType] = mapped_column(scam_type_column())
+    risk_level: Mapped[RiskLevel] = mapped_column(_str_enum(RiskLevel, "risk_level"))
+    # `Signal` codes, sorted.
+    signals: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    assessed_by: Mapped[AssessedBy] = mapped_column(_str_enum(AssessedBy, "assessed_by"))
+    # Set to pending when the level becomes high; None = no alert needed.
+    alert_status: Mapped[AlertStatus | None] = mapped_column(_str_enum(AlertStatus, "alert_status"))

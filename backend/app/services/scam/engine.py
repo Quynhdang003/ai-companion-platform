@@ -20,7 +20,7 @@ from enum import StrEnum
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm.client import LLMClient, LLMError, LLMNotConfiguredError, LLMRateLimitedError
-from app.models import RiskLevel, ScamType, Signal
+from app.models import AssessedBy, RiskLevel, ScamType, Signal
 from app.services.scam.classifier import classify
 from app.services.scam.rules import RuleResult, assess_rules
 from app.services.scam.search import search_patterns
@@ -32,12 +32,6 @@ PATTERN_LIMIT = 3
 EMBED_TIMEOUT_SECONDS = 1.5
 # Less budget than this left for the classifier: don't start it.
 MIN_CLASSIFIER_SECONDS = 0.5
-
-
-class AssessedBy(StrEnum):
-    RULES = "rules"  # a decisive rule
-    LLM = "llm"  # the classifier
-    RULES_FALLBACK = "rules_fallback"  # the classifier failed or ran out of time
 
 
 class FallbackReason(StrEnum):
