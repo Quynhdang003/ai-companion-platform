@@ -1,0 +1,40 @@
+{
+  "name": "check_scam",
+  "description": "Kiểm tra chuyện người gọi kể có phải lừa đảo không và lấy câu cảnh báo để nói. Gọi khi người gọi kể rằng có ai đó (gọi điện, nhắn tin hay đến nhà) xưng là công an, viện kiểm sát, tòa án, ngân hàng, con cháu hay người quen; hoặc đòi chuyển tiền, đọc mã OTP, mật khẩu, số tài khoản, bấm đường link, cài ứng dụng; hoặc mời đầu tư, bán thuốc, mời đi nghỉ dưỡng, báo trúng thưởng, xin quyên góp. Không gọi cho câu hỏi chung về các kiểu lừa đảo (dùng search_knowledge). Kết quả có risk_level (none, low, medium hoặc high), scam_type và message (câu cảnh báo nói được, nói nguyên văn).",
+  "category": "http_api",
+  "definition": {
+    "schema_version": 1,
+    "type": "http_api",
+    "messages": [
+      {
+        "type": "text",
+        "event": "delayed",
+        "after_ms": 1500,
+        "text": "Dạ, bác chờ con xem một chút ạ."
+      }
+    ],
+    "config": {
+      "method": "POST",
+      "url": "http://host.docker.internal:8000/tools/check-scam",
+      "credential_uuid": "<CREDENTIAL_UUID>",
+      "parameters": [
+        {
+          "name": "situation",
+          "type": "string",
+          "description": "Tóm tắt chuyện người gọi kể, một đến ba câu tiếng Việt có dấu, theo lời người gọi: ai liên hệ và qua đâu (gọi điện, nhắn tin, đến nhà), xưng là ai, nói gì, đòi làm gì (chuyển tiền, đọc mã, bấm link, mua hàng, ký hợp đồng...), có dọa, giục hay dặn giữ bí mật không. Ví dụ: \"Có người gọi xưng là công an, nói bác liên quan vụ rửa tiền, bảo chuyển tiền vào tài khoản tạm giữ và không được nói với con cháu.\" Không ghi tên, số điện thoại, số tài khoản, mã số hay số tiền cụ thể.",
+          "required": true
+        }
+      ],
+      "preset_parameters": [
+        {
+          "name": "session_token",
+          "type": "string",
+          "value_template": "{{initial_context.session_token}}",
+          "required": true
+        }
+      ],
+      "timeout_ms": 8000,
+      "body_format": "json"
+    }
+  }
+}

@@ -41,12 +41,11 @@ Update after every meaningful implementation change.
 
 ## In progress
 
-- None.
+- `SCAM-04b`: repo part done: `dograh/tools/check_scam.json` (timeout 8 s, validated with Dograh's `CreateToolRequest`), prompts (when to call `check_scam`, say `message` word for word, fixed caution on error; never ask for codes or account numbers), README steps + scam checklist. Left (user, in the Dograh UI): create the tool, add it to the Start node, paste both prompts, publish v17, then run the README "Scam check" text-chat checklist (11 cases + unknown caller).
 
 ## Next
 
 - `SCAM-03b`: finish the live eval (`uv run python -m scripts.eval_scam`, resumes from its cache): 19 cases left (`other-04` and every medium, low and none case), so the classifier's false alarms on look-alikes are still unmeasured. Also see whether the transient classifier errors repeat (now logged).
-- `SCAM-04b`: Dograh `check_scam` tool + prompt (when to call it, how to warn), workflow v17; text chat: one case per type + benign cases.
 - `NOTI-01a`: `NotificationChannel` + Telegram bot channel. Family members link Telegram with a one-time deep link (`/start <token>`, read by a `getUpdates` polling job, no public URL needed); routes to link, check status, unlink.
 - `NOTI-01b`: dashboard card to connect and disconnect Telegram.
 - `NOTI-02`: alert job: `scam_events` with `alert_status = pending` → Telegram to every linked family member who connected it (elder name, type, level, time; the table already keeps one event per call and type); retries, then `failed`. End-to-end: a scam case in text chat → Telegram on a phone (criterion 5).

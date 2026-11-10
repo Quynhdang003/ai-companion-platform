@@ -1,12 +1,13 @@
 # dograh
 
-Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`): exported workflow, prompts and HTTP tool definitions. Docs/config only, not application code. No secrets: instance-specific IDs are placeholders (`<CREDENTIAL_UUID>`, `<CONFIRM_ACTIVATION_TOOL_UUID>`, `<SEARCH_KNOWLEDGE_TOOL_UUID>`).
+Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`): exported workflow, prompts and HTTP tool definitions. Docs/config only, not application code. No secrets: instance-specific IDs are placeholders (`<CREDENTIAL_UUID>`, `<CONFIRM_ACTIVATION_TOOL_UUID>`, `<SEARCH_KNOWLEDGE_TOOL_UUID>`, `<CHECK_SCAM_TOOL_UUID>`).
 
 | Path | What |
 |---|---|
-| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b; published as v16): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
+| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b; v16 published, the SCAM-04b changes become v17 once applied): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
 | `tools/confirm_activation.json` | HTTP tool body for `POST /api/v1/tools/`. |
 | `tools/search_knowledge.json` | HTTP tool body for `POST /api/v1/tools/` (RAG-02b). |
+| `tools/check_scam.json` | HTTP tool body for `POST /api/v1/tools/` (SCAM-04b). Validated with Dograh 1.50.0's `CreateToolRequest`. |
 | `prompts/*.md` | Readable copies of the prompts in the workflow JSON (regenerate when the JSON changes). |
 
 ## What the workflow does
@@ -18,10 +19,18 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
   - `pending_consent`: says the number was registered by `{{registered_by | người thân của bác}}`, explains briefly, asks for consent. It calls `confirm_activation` only after a clear yes, then reads back the tool's `message`.
   - `unknown` or missing: generic greeting, no personal data, no `confirm_activation`.
   - Any status (RAG-02b): questions about the service, scams or emergency numbers → `search_knowledge` with the question rewritten short. The agent answers in one or two sentences from `results`, or says `message` when nothing is found. A pending caller can ask about the service this way before consenting.
-- **Global** node: tone (Vietnamese, "con"/"bác", one or two short sentences per turn) and safety rules (never ask for or repeat the caller's phone number or identifiers; emergency numbers from `search_knowledge` may be said; no claims about the service beyond the prompt and `search_knowledge` results).
+  - Any status (SCAM-04b): the caller tells about someone (a call, a message, a visit) claiming to be police, a bank or a relative, or asking for money, a code, a link or an app, or offering an investment, medicine, a resort, a prize or a donation → `check_scam` with a 1–3 sentence `situation` (no names, numbers, codes or amounts).
+    - If it's unclear what they asked for, the agent asks at most one short question first.
+    - The agent says the result's `message` word for word, then reassures the caller. On a tool error it says a fixed caution ("bác khoan làm theo họ…").
+    - One call per story; another only when an important new detail comes up (they now ask for an OTP or money).
+    - General questions about kinds of scams stay with `search_knowledge`.
+- **Global** node: tone (Vietnamese, "con"/"bác", one or two short sentences per turn) and safety rules (never ask for or repeat the caller's phone number or identifiers; never ask for an OTP, password, account or card number, not even to check a scam, and never put one in a tool parameter; emergency numbers from `search_knowledge` may be said; no claims about the service beyond the prompt and `search_knowledge` results).
 - **End Call** node via edge `ket_thuc_cuoc_goi`.
 - Tool `confirm_activation`: no LLM parameters. A single Preset Parameter `session_token = {{initial_context.session_token}}`, so the LLM can't supply identity.
 - Tool `search_knowledge` → `POST /tools/search-knowledge`: one LLM parameter `query` and the same `session_token` preset. Dograh lets LLM arguments override presets of the same name, so the tool never declares a `session_token` parameter. If the tool is still running after 1.5 s, the agent says "Dạ, con tìm một chút ạ." (a `delayed` tool message).
+- Tool `check_scam` → `POST /tools/check-scam`: one LLM parameter `situation` and the same `session_token` preset.
+  - Timeout 8000 ms: the backend answers within `SCAM_CHECK_TIMEOUT_SECONDS` (6 s), falling back to its rules past that. Dograh's default 5 s was too tight for the classifier.
+  - After 1.5 s the agent says "Dạ, bác chờ con xem một chút ạ." Rule-decided cases answer in milliseconds; classifier cases take about 2–4 s.
 - **Webhook** node `Báo backend khi kết thúc` (not connected by edges; Dograh sends it after every run ends): `POST http://host.docker.internal:8000/hooks/call-ended`, same Bearer credential.
   - The payload template sends `workflow_run_id`, `duration_seconds`, `disposition`, `transcript_url` and `recording_url`. It never sends `session_token` or `initial_context`.
   - The backend downloads the transcript itself, for consented callers only (`context/api-contracts.md`).
@@ -34,18 +43,24 @@ In the Dograh UI (http://localhost:3010):
 
 1. **Credential** (used by the hooks and both tools): type *Bearer token*, name `ai-companion-backend`, token = `DOGRAH_API_KEY`.
 2. **Providers**: none needed. The workflow uses the Dograh-managed connection (created when you sign up on the self-host) for LLM, STT and TTS. Optional: *Google* (AI Studio, not Vertex), name `Gemini`, API key, as used in DG-01b's text-chat tests.
-3. **Tools**: create two HTTP API tools, both with authentication = the credential:
+3. **Tools**: create three HTTP API tools, all with authentication = the credential:
    - `tools/confirm_activation.json`: method `POST`, URL `http://host.docker.internal:8000/tools/confirm-activation`. No parameters. One preset parameter `session_token` (string, required) = `{{initial_context.session_token}}`.
    - `tools/search_knowledge.json`: method `POST`, URL `http://host.docker.internal:8000/tools/search-knowledge`, timeout 5000 ms.
      - One parameter `query` (string, required) with the description from the JSON.
      - The same preset parameter `session_token`.
      - Description: copy it from the JSON.
      - Message: event *delayed*, after 1500 ms, text "Dạ, con tìm một chút ạ."
+   - `tools/check_scam.json`: method `POST`, URL `http://host.docker.internal:8000/tools/check-scam`, **timeout 8000 ms**.
+     - One parameter `situation` (string, required) with the description from the JSON (it includes an example).
+     - The same preset parameter `session_token`.
+     - Description: copy it from the JSON.
+     - Message: event *delayed*, after 1500 ms, text "Dạ, bác chờ con xem một chút ạ."
    - When copying a description from a JSON file into the UI, paste the plain text: `\"` becomes `"`.
    - Tool edits apply to new calls right away: Dograh loads tools by UUID at run time, so there is no workflow publish.
    - The dev KB must be seeded (`cd backend && uv run python -m scripts.seed_kb`).
+   - For `check_scam`, the dev DB needs the `scam_events` migration and the scam patterns: `cd backend && uv run alembic upgrade head && uv run python -m scripts.seed_scam_patterns`. The backend needs `GEMINI_API_KEY`; the classifier uses `GEMINI_SCAM_MODEL` (default `gemini-3.5-flash-lite`).
 4. **Workflow**: create it from `workflows/identity-consent.json` (API below). The UI builder has the same fields:
-   - Start Call → pre-call data fetch, greeting, prompt, tools (both).
+   - Start Call → pre-call data fetch, greeting, prompt, tools (all three).
    - Webhook node → URL, method, credential, payload.
    - Settings → **Context Variables**: `caller_number` (+ empty `called_number`). Dograh sends these as `from_number` / `to_number` for web and text test calls.
    - **Model configuration** (workflow override, as published in version 16):
@@ -60,11 +75,11 @@ Same steps over the API (`TOKEN` from `POST /api/v1/auth/login`):
 API=http://localhost:8010/api/v1; AUTH="Authorization: Bearer $TOKEN"
 curl -s -X POST $API/credentials/ -H "$AUTH" -H 'Content-Type: application/json' \
   -d '{"name":"ai-companion-backend","credential_type":"bearer_token","credential_data":{"token":"<DOGRAH_API_KEY>"}}'   # -> uuid
-for tool in confirm_activation search_knowledge; do
+for tool in confirm_activation search_knowledge check_scam; do
   sed 's/<CREDENTIAL_UUID>/<uuid>/' tools/$tool.json \
     | curl -s -X POST $API/tools/ -H "$AUTH" -H 'Content-Type: application/json' -d @-                                     # -> tool_uuid
 done
-# workflow: replace the three placeholders, send {name, workflow_definition} to create/definition,
+# workflow: replace the four placeholders, send {name, workflow_definition} to create/definition,
 # then PUT $API/workflow/<id> with {"template_context_variables": {...}} and
 # {"workflow_configurations": {"model_configuration_override": {...}}} (LLM/STT/TTS above),
 # then POST $API/workflow/<id>/validate and POST $API/workflow/<id>/publish.
@@ -105,7 +120,7 @@ UPDATE elders SET status = 'PENDING_VERIFICATION', consent_at = NULL WHERE phone
 -- Check after the consent test:
 SELECT phone_e164, status, consent_at FROM elders WHERE phone_e164 = '+84912000002';
 
--- Cleanup (sessions cascade to call_logs). Test runs with an empty caller_number: delete
+-- Cleanup (sessions cascade to call_logs and scam_events). Test runs with an empty caller_number: delete
 -- their sessions by workflow_run_id, so your own web-call sessions stay.
 BEGIN;
 DELETE FROM call_sessions WHERE elder_id IS NULL AND from_number = '+84912000009';
@@ -149,6 +164,42 @@ SELECT workflow_run_id, status, attempt_count, last_status_code FROM webhook_del
    - "Giá vàng hôm nay bao nhiêu?" → "con chưa có thông tin…", no made-up price. This topic is outside the tool's description, so the agent may answer without calling it.
 2. Call as `+84912000009` (unknown) and ask "Dịch vụ này có mất phí không?" → ask the relative who registered. Still no name and no `confirm_activation`.
 3. Each KB question shows one `search_knowledge` call with a short Vietnamese `query`, and the backend log shows `POST /tools/search-knowledge` 200.
+
+**Scam check** (SCAM-04b, criterion 5 without Telegram):
+- Setup: dev DB migrated and scam patterns seeded; backend running with `GEMINI_API_KEY`; test data below.
+- Quota: the free tier allows ~20 classifier requests a day on `GEMINI_SCAM_MODEL`. Only cases 3, 7 and 9 reach the classifier. If the quota is spent, they fall back to the rules (case 3 and 7 → medium, still a warning).
+
+Text chat as `+84912000001` (ACTIVE). Say each story in a fresh session, or one after another in the same session (each type is its own event). The agent should call `check_scam` and say its `message` word for word:
+
+| # | Caller says | Expected `risk_level` / `scam_type` | Decided by |
+|---|---|---|---|
+| 1 | "Có người gọi xưng là công an, nói bác dính vào vụ rửa tiền, bảo bác chuyển tiền vào tài khoản tạm giữ." | high / police_impersonation | rule `safe_account` |
+| 2 | "Có người xưng nhân viên ngân hàng bảo thẻ của bác bị khóa, xin bác đọc mã OTP." | high / bank_impersonation | rule `credentials` |
+| 3 | "Có đứa xưng là cháu gọi từ số lạ, bảo đang cấp cứu ở viện, nhờ bác chuyển tiền gấp." | high / relative_impersonation | classifier |
+| 4 | "Có người mời bác góp vốn mua tiền ảo, bảo lãi mỗi ngày ba phần trăm, không có rủi ro." | high / investment | rule `easy_profit_payment` |
+| 5 | "Có người gọi bảo có thuốc chữa khỏi hẳn tiểu đường, bác phải chuyển khoản trước mới gửi thuốc." | high / health_product | rule `miracle_cure_payment` |
+| 6 | "Người ta báo bác trúng thưởng một kỳ nghỉ ở khu nghỉ dưỡng, phải đóng phí nhận quà." | high / resort_contract | rule `prize_payment` |
+| 7 | "Có người gọi kể có em bé bị bệnh nặng, xin bác quyên góp vào tài khoản cá nhân của họ." | high (or medium) / fake_charity | classifier |
+| 8 | "Có người xưng bên điện lực bảo nhà bác nợ tiền điện, sắp cắt điện, bảo bấm vào đường link để nộp tiền." | high / other | rule `impostor_link` |
+| 9 | "Cháu gái bác gọi về nhờ bác chuyển ít tiền đóng học phí, cuối tuần cháu về thăm." | low or none, or no `check_scam` call | classifier |
+| 10 | "Con trai bác vừa gọi bằng số quen, bảo tối nay về ăn cơm." | no `check_scam` call (just chat) | — |
+| 11 | "Lừa đảo giả danh công an thường thế nào hả con?" | `search_knowledge`, not `check_scam` | — |
+
+Then:
+- Repeat case 2 as `+84912000009` (unknown): the same warning, and no new `scam_events` row.
+- For each call, check that the `situation` the agent wrote holds no name, phone number, code or amount (SQL below).
+- The agent never asks for an OTP, password or account number.
+
+```sql
+-- app DB: one row per call and type; high ones wait for the family alert (NOTI-02)
+SELECT s.from_number, e.scam_type, e.risk_level, e.assessed_by, e.alert_status, e.signals, e.created_at
+FROM scam_events e JOIN call_sessions s ON s.id = e.call_session_id ORDER BY e.created_at DESC;
+-- Dograh DB: what the agent sent
+SELECT r.id AS run, e->'payload'->'arguments'->>'situation' AS situation
+FROM workflow_runs r, json_array_elements(r.logs->'realtime_feedback_events') e
+WHERE e->>'type' = 'rtf-function-call-start' AND e->'payload'->>'function_name' = 'check_scam'
+ORDER BY r.id DESC LIMIT 20;
+```
 
 Tool calls are in the run's `logs.realtime_feedback_events` (`rtf-function-call-start` / `-end`) for text chats and voice calls alike. Text chats leave `logs.conversation` empty.
 
