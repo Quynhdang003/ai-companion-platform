@@ -6,6 +6,8 @@ import {
   linkRequestDecisionSchema,
   outgoingRequestSchema,
   registrationSchema,
+  telegramLinkSchema,
+  telegramStatusSchema,
   userSchema,
   type ElderCreate,
 } from "./schemas";
@@ -33,7 +35,7 @@ function apiBaseUrl(): string {
   return url.replace(/\/+$/, "");
 }
 
-type RequestOptions = { method?: "GET" | "POST"; json?: unknown };
+type RequestOptions = { method?: "GET" | "POST" | "DELETE"; json?: unknown };
 
 async function request<T>(
   getToken: GetToken,
@@ -108,6 +110,16 @@ export function createApiClient(getToken: GetToken) {
         linkRequestDecisionSchema,
         { method: "POST" },
       ),
+    getTelegramStatus: () =>
+      request(getToken, "/api/telegram", telegramStatusSchema),
+    createTelegramLink: () =>
+      request(getToken, "/api/telegram/link", telegramLinkSchema, {
+        method: "POST",
+      }),
+    disconnectTelegram: () =>
+      request(getToken, "/api/telegram", telegramStatusSchema, {
+        method: "DELETE",
+      }),
   };
 }
 

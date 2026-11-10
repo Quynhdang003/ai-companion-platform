@@ -91,3 +91,18 @@ export const linkRequestDecisionSchema = z.object({
   status: linkRequestStatusSchema,
   decided_at: timestamp.nullable(),
 });
+
+/** `GET /api/telegram`, `DELETE /api/telegram`: `enabled` = Telegram is set up on the server. */
+export const telegramStatusSchema = z.object({
+  enabled: z.boolean(),
+  connected: z.boolean(),
+  linked_at: timestamp.nullable(),
+});
+export type TelegramStatus = z.infer<typeof telegramStatusSchema>;
+
+/** `POST /api/telegram/link`: one-time t.me link to the bot. */
+export const telegramLinkSchema = z.object({
+  url: z.url(),
+  expires_at: timestamp,
+});
+export type TelegramLink = z.infer<typeof telegramLinkSchema>;

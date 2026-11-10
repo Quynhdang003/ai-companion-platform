@@ -6,6 +6,7 @@ import {
   IncomingRequestCard,
   OutgoingRequestRow,
 } from "@/components/dashboard/link-requests";
+import { TelegramCard } from "@/components/dashboard/telegram-card";
 import { buttonVariants } from "@/components/ui/button";
 import { getServerApi } from "@/lib/api/server";
 import { cn } from "@/lib/utils";
@@ -19,7 +20,8 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">Trang tổng quan</h1>
           <p className="mt-1 text-muted-foreground">
-            Người thân bạn đã đăng ký và các yêu cầu liên kết.
+            Người thân bạn đã đăng ký, cảnh báo qua Telegram và các yêu cầu
+            liên kết.
           </p>
         </div>
         <Link href="/dashboard/elders/new" className={primaryLink}>
@@ -49,10 +51,11 @@ async function DashboardContent() {
     );
   }
 
-  const [elders, incoming, outgoing] = await Promise.all([
+  const [elders, incoming, outgoing, telegram] = await Promise.all([
     api.listElders(),
     api.listIncomingRequests(),
     api.listOutgoingRequests(),
+    api.getTelegramStatus(),
   ]);
 
   return (
@@ -85,6 +88,11 @@ async function DashboardContent() {
             </Link>
           </div>
         )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold">Nhận cảnh báo lừa đảo</h2>
+        <TelegramCard initial={telegram} />
       </section>
 
       {outgoing.length > 0 && (

@@ -39,6 +39,7 @@ Update after every meaningful implementation change.
 | `SCAM-03` | Layer 2 (Gemini on its own model) + engine: decisive rule skips it, failures fall back to rules; `scripts.eval_scam` | 404 tests; live on 34/53 cases (`gemini-3.5-flash-lite`, free-tier quota): 31/34 high → high (rules alone 22/35), 34/34 warned with the right type; 3 transient errors fell back to rules; classifier p50 2.1 s, p90 3.8 s (in-call budget: see decisions) |
 | `SCAM-04a` | `scam_events` (`391d115c2959`) + tool `POST /tools/check-scam`: templated warning for every caller, events for ACTIVE medium/high | 477 tests; dev backend + real Gemini: OTP → high by rule (0.02 s, alert `pending`), relative asking money → high by classifier (2.0 s), harmless → none (1.7 s, not stored), unknown caller warned, nothing stored |
 | `NOTI-01a` | `NotificationChannel` + Telegram bot; `telegram_links` (`80d72daa5d7d`), one-time `/start` connect via `getUpdates` polling, connect/status/disconnect routes | 514 tests; Bot API mocked (httpx `MockTransport`, `FakeTelegramBot`); no real bot yet (user decision), see `NOTI-02b` |
+| `NOTI-01b` | Dashboard Telegram card: connect by one-time link (waits for Start), status, disconnect | Lint + build; headless Chrome + Clerk dev vs a local fake Bot API: connected 2.9 s after `/start`, reused link rejected, disconnect, cancel; 1440/390 no overflow, no console errors |
 
 ## In progress
 
@@ -47,7 +48,6 @@ Update after every meaningful implementation change.
 ## Next
 
 - `SCAM-03b`: finish the live eval (`uv run python -m scripts.eval_scam`, resumes from its cache): 19 cases left (`other-04` and every medium, low and none case), so the classifier's false alarms on look-alikes are still unmeasured. Also see whether the transient classifier errors repeat (now logged).
-- `NOTI-01b`: dashboard card to connect and disconnect Telegram.
 - `NOTI-02`: alert job: `scam_events` with `alert_status = pending` → Telegram to every linked family member who connected it (elder name, type, level, time; the table already keeps one event per call and type); retries, then `failed`; nobody connected → `skipped` (no late resend, user decision).
 - `NOTI-02b`: live check with a real bot (user creates it with @BotFather, sets `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME`): connect from the dashboard, then a scam case in text chat → Telegram on a phone (criterion 5).
 - `SCAM-05` (if time allows): post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
