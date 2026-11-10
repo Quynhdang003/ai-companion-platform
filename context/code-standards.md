@@ -22,11 +22,15 @@
   - Scam classification uses `get_scam_llm_client()` (`GEMINI_SCAM_MODEL`), injected the same way; the test `client` fixture overrides it too.
   - On the real-time call path (Dograh tools), an LLM call runs against a deadline (`asyncio.wait_for`) and any `LLMError` or timeout falls back to a non-LLM answer: the tool never fails because of the LLM (`app/services/scam/engine.py`).
   - Prompts whose results are cached (`scripts.eval_scam`) carry a `PROMPT_VERSION`; bump it on any prompt change.
+- Notifications go through `NotificationChannel` (`app/services/notification/channel.py`: `send(recipient, text)`, plain text). Errors: `NotificationError` (retry later); `RecipientUnreachableError` (e.g. the chat blocked the bot: stop sending to it). Telegram is `TelegramBot` (`telegram.py`, Bot API over httpx); tests use `FakeTelegramBot` (`tests/fakes.py`).
+  - Bot API URLs contain the bot token: never log or raise a URL or a chained httpx error (`raise ... from None`); httpx's INFO request log is silenced.
+  - Messages to family carry metadata and scam type/level only; logs never carry chat ids.
 - Background jobs (pattern: `app/services/memory/job.py`):
   - A status column marks the queued work.
   - The job is registered in `app/core/scheduler.py` (APScheduler, started in the FastAPI lifespan; `SCHEDULER_ENABLED=false` turns it off).
   - Claim one row at a time with `FOR UPDATE SKIP LOCKED`, and write its results in a savepoint, so an error leaves nothing half-written.
   - LLM errors count as attempts, up to a max, then `failed`. Rate limits and a missing key don't count: the run stops and the row stays queued.
+  - Jobs open sessions with a `SessionFactory` (`app/core/db.py`, default `SessionLocal`); tests pass `same_session(session)` (`tests/conftest.py`).
   - Tests call the per-row function directly with `FakeLLMClient`; the test client never starts the scheduler.
 
 ## TypeScript

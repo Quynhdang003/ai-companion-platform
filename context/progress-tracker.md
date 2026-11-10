@@ -38,6 +38,7 @@ Update after every meaningful implementation change.
 | `SCAM-02` | Labelled test set (53 cases) + layer-1 rules: 21 signals, 8 decisive rules, type from weighted cues | 381 tests; on the set: 22/35 high decisive, 0 decisive on non-high, every high ≥ medium, every none ≤ low (optimistic: rules and set written together) |
 | `SCAM-03` | Layer 2 (Gemini on its own model) + engine: decisive rule skips it, failures fall back to rules; `scripts.eval_scam` | 404 tests; live on 34/53 cases (`gemini-3.5-flash-lite`, free-tier quota): 31/34 high → high (rules alone 22/35), 34/34 warned with the right type; 3 transient errors fell back to rules; classifier p50 2.1 s, p90 3.8 s (in-call budget: see decisions) |
 | `SCAM-04a` | `scam_events` (`391d115c2959`) + tool `POST /tools/check-scam`: templated warning for every caller, events for ACTIVE medium/high | 477 tests; dev backend + real Gemini: OTP → high by rule (0.02 s, alert `pending`), relative asking money → high by classifier (2.0 s), harmless → none (1.7 s, not stored), unknown caller warned, nothing stored |
+| `NOTI-01a` | `NotificationChannel` + Telegram bot; `telegram_links` (`80d72daa5d7d`), one-time `/start` connect via `getUpdates` polling, connect/status/disconnect routes | 514 tests; Bot API mocked (httpx `MockTransport`, `FakeTelegramBot`); no real bot yet (user decision), see `NOTI-02b` |
 
 ## In progress
 
@@ -46,9 +47,9 @@ Update after every meaningful implementation change.
 ## Next
 
 - `SCAM-03b`: finish the live eval (`uv run python -m scripts.eval_scam`, resumes from its cache): 19 cases left (`other-04` and every medium, low and none case), so the classifier's false alarms on look-alikes are still unmeasured. Also see whether the transient classifier errors repeat (now logged).
-- `NOTI-01a`: `NotificationChannel` + Telegram bot channel. Family members link Telegram with a one-time deep link (`/start <token>`, read by a `getUpdates` polling job, no public URL needed); routes to link, check status, unlink.
 - `NOTI-01b`: dashboard card to connect and disconnect Telegram.
-- `NOTI-02`: alert job: `scam_events` with `alert_status = pending` → Telegram to every linked family member who connected it (elder name, type, level, time; the table already keeps one event per call and type); retries, then `failed`. End-to-end: a scam case in text chat → Telegram on a phone (criterion 5).
+- `NOTI-02`: alert job: `scam_events` with `alert_status = pending` → Telegram to every linked family member who connected it (elder name, type, level, time; the table already keeps one event per call and type); retries, then `failed`; nobody connected → `skipped` (no late resend, user decision).
+- `NOTI-02b`: live check with a real bot (user creates it with @BotFather, sets `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME`): connect from the dashboard, then a scam case in text chat → Telegram on a phone (criterion 5).
 - `SCAM-05` (if time allows): post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
 
 ## Backlog (unscheduled)
@@ -78,6 +79,7 @@ Update after every meaningful implementation change.
 - KB search open to every live call, unknown and pending-consent callers included: the KB holds no personal data, and callers can ask about the service before consenting.
 - Embeddings: `gemini-embedding-001` at 768 dims for memories and KB: smaller HNSW index, enough for short Vietnamese text. Changing it means a full re-index.
 - Telegram for urgent alerts, Email for reports: email too slow for scam alerts.
+- Telegram connect by a one-time deep link (`t.me/<bot>?start=<token>`) read with `getUpdates` polling: no webhook, so no public URL or tunnel is needed; the token is hashed, expires in 15 min and works once. One chat per family account; two accounts may share a chat.
 - Scam check split: real-time in-call + async post-call memory extraction.
 - In-call scam check is a tool the agent calls (`check_scam`), not a per-turn check: Dograh 1.50.0 has no per-turn backend hook (node types: `startCall`, `agentNode`, `endCall`, `globalNode`, `webhook`, `trigger`, `qa`). The agent calls it when the caller tells it about a suspicious call or request; the post-call scan (`SCAM-05`) catches what it misses.
 - Scam types: 7 (police, bank and relative impersonation, investment, health products, resort contracts, fake charity) + `other`, matching the KB scam doc; more can be added later (a migration widens the `CHECK`).

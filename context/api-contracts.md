@@ -9,7 +9,7 @@ Read before adding, changing or calling any backend route. Behavior only; implem
   - `CurrentUser` (`app/core/auth.py`): Clerk session JWT as `Authorization: Bearer`; missing/invalid → 401 `unauthorized`. A verified user missing from the DB is created as `family`.
   - `require_role(*roles)` (`app/core/auth.py`): wrong role → 403 `forbidden`. `FamilyUser` = `require_role(family)`.
   - `require_dograh_key` (`app/core/dograh_auth.py`): `Authorization: Bearer <DOGRAH_API_KEY>`; missing/wrong → 401 `unauthorized`.
-- Required env unset → 500 `*_not_configured`: `auth_not_configured` (`CLERK_ISSUER`), `webhook_not_configured` (`CLERK_WEBHOOK_SECRET`), `dograh_not_configured` (`DOGRAH_API_KEY`).
+- Required env unset → 500 `*_not_configured`: `auth_not_configured` (`CLERK_ISSUER`), `webhook_not_configured` (`CLERK_WEBHOOK_SECRET`), `dograh_not_configured` (`DOGRAH_API_KEY`), `telegram_not_configured` (`TELEGRAM_BOT_TOKEN` or `TELEGRAM_BOT_USERNAME`).
 - Phone input is normalized with `normalize_vn_phone` (VN mobile + landline); responses carry E.164.
 - CORS: browser origins from `CORS_ORIGINS`.
 
@@ -26,6 +26,11 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
 | `GET /api/link-requests/outgoing` | F | 200 requests I sent: `[{id, phone_e164, status, elder_full_name (approved only), created_at, decided_at}]` | |
 | `POST /api/link-requests/{id}/approve` | F | 200 `{id, status, decided_at}`; requester becomes `viewer` | 404 `not_found` (missing or not owner), 409 `already_decided` |
 | `POST /api/link-requests/{id}/reject` | F | 200 `{id, status, decided_at}` | 404 `not_found` (missing or not owner), 409 `already_decided` |
+| `GET /api/telegram` | F | 200 `{enabled, connected, linked_at}`: `enabled` = Telegram is set up on the server | |
+| `POST /api/telegram/link` | F | 200 `{url, expires_at}`: `https://t.me/<bot>?start=<token>`, one-time, `TELEGRAM_LINK_TTL_MINUTES` (15); replaces any unused link, a connected chat stays until the new link is used | 500 `telegram_not_configured` |
+| `DELETE /api/telegram` | F | 200 `{enabled, connected: false, linked_at: null}`; no more alerts, unused link dropped; repeatable | |
+
+Telegram connect: opening the link sends `/start <token>` to the bot from the user's chat. A polling job (`getUpdates`, every `TELEGRAM_POLL_INTERVAL_SECONDS`) links that chat if the token is live (private chats only) and replies in Vietnamese (connected / link no longer valid / help). The website polls `GET /api/telegram` to see it connected.
 
 ## Clerk webhook
 

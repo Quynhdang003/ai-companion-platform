@@ -2,6 +2,7 @@ import asyncio
 import base64
 import uuid
 from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -19,10 +20,11 @@ from sqlalchemy.pool import NullPool
 from svix.webhooks import Webhook
 
 from alembic import command
+from app.api.web.telegram import get_bot_username
 from app.api.webhooks.clerk import get_clerk_webhook
 from app.core.auth import ClerkJWTVerifier, get_verifier
 from app.core.config import get_settings
-from app.core.db import get_db
+from app.core.db import SessionFactory, get_db
 from app.core.dograh_auth import get_dograh_api_key
 from app.llm.client import get_llm_client, get_scam_llm_client
 from app.main import app
@@ -36,6 +38,7 @@ TEST_AZP = "http://localhost:3000"
 WEBHOOK_SECRET = "whsec_" + base64.b64encode(b"test-webhook-secret-0123").decode()
 DOGRAH_KEY = "test-dograh-key"
 DOGRAH_HEADERS = {"Authorization": f"Bearer {DOGRAH_KEY}"}
+TEST_BOT_USERNAME = "test_alert_bot"
 
 TokenFactory = Callable[..., str]
 HeadersFactory = Callable[[str], dict[str, str]]
@@ -88,6 +91,16 @@ async def session(migrated_db: str) -> AsyncIterator[AsyncSession]:
     await engine.dispose()
 
 
+def same_session(session: AsyncSession) -> SessionFactory:
+    """Session factory for jobs that hands out the test's own session."""
+
+    @asynccontextmanager
+    async def factory() -> AsyncIterator[AsyncSession]:
+        yield session
+
+    return factory
+
+
 @pytest.fixture(scope="session")
 def rsa_key() -> rsa.RSAPrivateKey:
     return rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -138,6 +151,8 @@ async def client(session: AsyncSession, rsa_key: rsa.RSAPrivateKey) -> AsyncIter
     # Routes never reach Gemini in tests; override again to use a specific fake.
     app.dependency_overrides[get_llm_client] = lambda: FakeLLMClient()
     app.dependency_overrides[get_scam_llm_client] = lambda: FakeLLMClient()
+    # Telegram is set up, whatever the local .env says; override with None to turn it off.
+    app.dependency_overrides[get_bot_username] = lambda: TEST_BOT_USERNAME
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             yield c

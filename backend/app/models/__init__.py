@@ -15,6 +15,7 @@ from app.models.scam import (
     ScamType,
     Signal,
 )
+from app.models.telegram import TelegramLink
 from app.models.user import User, UserRole
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "ScamPattern",
     "ScamType",
     "Signal",
+    "TelegramLink",
     "User",
     "UserRole",
 ]

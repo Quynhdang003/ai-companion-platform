@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.llm.client import EmbedTask, LLMError, SchemaT
 from app.llm.embeddings import EMBEDDING_DIMS
+from app.services.notification.telegram import TelegramUpdate
 
 
 def fake_vector(text: str) -> list[float]:
@@ -78,3 +79,38 @@ class SlowLLM(FakeLLMClient):
         if task == "query":
             await asyncio.sleep(1)
         return await super().embed(texts, task=task)
+
+
+class FakeTelegramBot:
+    """`TelegramApi` that records sent messages and replays queued updates.
+
+    Queue lists of updates (one per `get_updates` call) or exceptions in `updates`; put an
+    exception in `send_errors[chat_id]` to make sending to that chat fail.
+    """
+
+    def __init__(self) -> None:
+        self.updates: list[list[TelegramUpdate] | Exception] = []
+        self.offsets: list[int | None] = []
+        self.sent: list[tuple[str, str]] = []
+        self.send_errors: dict[str, Exception] = {}
+
+    async def send(self, recipient: str, text: str) -> None:
+        if recipient in self.send_errors:
+            raise self.send_errors[recipient]
+        self.sent.append((recipient, text))
+
+    async def get_updates(self, offset: int | None) -> list[TelegramUpdate]:
+        self.offsets.append(offset)
+        batch = self.updates.pop(0) if self.updates else []
+        if isinstance(batch, Exception):
+            raise batch
+        return batch
+
+
+def private_message(update_id: int, chat_id: int, text: str) -> TelegramUpdate:
+    return TelegramUpdate.model_validate(
+        {
+            "update_id": update_id,
+            "message": {"chat": {"id": chat_id, "type": "private"}, "text": text},
+        }
+    )
