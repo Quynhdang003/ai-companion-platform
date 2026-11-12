@@ -7,9 +7,12 @@ Run from backend/:
   GEMINI_SCAM_MODEL. `--limit` caps the classifier calls of this run.
 
 The free tier allows about 20 requests a day per model, fewer than the cases that reach the
-classifier. Classifier verdicts are cached in `backend/.cache/scam_eval/<model>.jsonl`, keyed
-by the situation and PROMPT_VERSION, so a run stopped by the quota goes on where it left
-off the next day. Only real verdicts are cached: errors and timeouts are retried.
+classifier, and limits requests per minute too (12 back-to-back calls hit it). Calls start
+CALL_INTERVAL_SECONDS apart, and a rate limit is retried once after a minute; a second one
+means the daily quota is spent, and the run stops. Classifier verdicts are cached in
+`backend/.cache/scam_eval/<model>.jsonl`, keyed by the situation and PROMPT_VERSION, so a run
+stopped by the quota goes on where it left off the next day. Only real verdicts are cached:
+errors and timeouts are retried.
 
 The classifier gets a generous timeout here, to measure the model; the report counts how
 many verdicts took longer than the in-call budget (SCAM_CHECK_TIMEOUT_SECONDS).
@@ -39,6 +42,10 @@ from scripts.scam_cases import ScamCase, load_cases
 
 CACHE_DIR = Path(__file__).resolve().parents[1] / ".cache" / "scam_eval"
 EVAL_TIMEOUT_SECONDS = 30.0
+# Free-tier per-minute limit: classifier calls start at least this far apart.
+CALL_INTERVAL_SECONDS = 6.0
+# A rate-limited call is retried once after this wait; a per-minute limit has reset by then.
+RATE_LIMIT_WAIT_SECONDS = 65.0
 RULES_ONLY = "rules_only"
 
 
@@ -220,6 +227,7 @@ async def run_engine(cases: Sequence[ScamCase], limit: int | None) -> dict[str, 
     llm = get_scam_llm_client()
     results: dict[str, CaseResult] = {}
     calls = 0
+    next_call = 0.0  # monotonic time the next classifier call may start
     async with SessionLocal() as db:
         for case in cases:
             rules = rules_result(case)
@@ -233,11 +241,25 @@ async def run_engine(cases: Sequence[ScamCase], limit: int | None) -> dict[str, 
             if limit is not None and calls >= limit:
                 continue
             calls += 1
-            started = time.monotonic()
-            assessment = await assess(db, llm, case.situation, timeout=EVAL_TIMEOUT_SECONDS)
-            latency = time.monotonic() - started
+            for attempt in range(2):
+                await asyncio.sleep(max(0.0, next_call - time.monotonic()))
+                started = time.monotonic()
+                next_call = started + CALL_INTERVAL_SECONDS
+                assessment = await assess(db, llm, case.situation, timeout=EVAL_TIMEOUT_SECONDS)
+                latency = time.monotonic() - started
+                if assessment.fallback_reason is not FallbackReason.RATE_LIMITED or attempt:
+                    break
+                print(
+                    f"Rate limited at {case.id}: retrying in {RATE_LIMIT_WAIT_SECONDS:g} s.",
+                    file=sys.stderr,
+                )
+                next_call = time.monotonic() + RATE_LIMIT_WAIT_SECONDS
             if assessment.fallback_reason is FallbackReason.RATE_LIMITED:
-                print(f"Rate limited at {case.id}: run again later to go on.", file=sys.stderr)
+                print(
+                    f"Still rate limited at {case.id}: daily quota spent? Run again later "
+                    "to go on.",
+                    file=sys.stderr,
+                )
                 break
             result = CaseResult(
                 case_id=case.id,

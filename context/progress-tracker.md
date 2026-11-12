@@ -41,14 +41,14 @@ Update after every meaningful implementation change.
 | `NOTI-01a` | `NotificationChannel` + Telegram bot; `telegram_links` (`80d72daa5d7d`), one-time `/start` connect via `getUpdates` polling, connect/status/disconnect routes | 514 tests; Bot API mocked (httpx `MockTransport`, `FakeTelegramBot`); no real bot yet (user decision), see `NOTI-02b` |
 | `NOTI-01b` | Dashboard Telegram card: connect by one-time link (waits for Start), status, disconnect | Lint + build; headless Chrome + Clerk dev vs a local fake Bot API: connected 2.9 s after `/start`, reused link rejected, disconnect, cancel; 1440/390 no overflow, no console errors |
 | `NOTI-02` | Alert job: pending high scam events → Telegram to the elder's connected family (`240a783c442a`); retries, `failed`, `skipped` | 528 tests; real backend + dev DB vs a local fake Bot API: connect via `/start` 0.6 s, OTP check → alert 0.9 s later (name, type, level, time; no call words), blocked chat disconnected, no repeat alert, second type alerted |
+| `SCAM-04b` | Dograh `check_scam` tool (8 s timeout) + prompt for every caller (workflow v20) | Text chat. ACTIVE: OTP, resort fee → high by rule (0.1–0.2 s); charity → medium, school fees look-alike → low (classifier 2.2–2.6 s, filler played); general question → `search_knowledge`; son's dinner → no call. Unknown: fake grandchild → high by classifier (2.4 s), nothing stored. `message` said word for word; no names, numbers or amounts in `situation`; agent never asked for the OTP; high events wait `pending` (no bot token yet, `NOTI-02b`) |
 
 ## In progress
 
-- `SCAM-04b`: repo part done: `dograh/tools/check_scam.json` (timeout 8 s, validated with Dograh's `CreateToolRequest`), prompts (when to call `check_scam`, say `message` word for word, fixed caution on error; never ask for codes or account numbers), README steps + scam checklist. Left (user, in the Dograh UI): create the tool, add it to the Start node, paste both prompts, publish v17, then run the README "Scam check" text-chat checklist (11 cases + unknown caller).
+- `SCAM-03b`: live eval at 48/53 (2026-11-12, `gemini-3.5-flash-lite`): 35/35 high → high with the right type (rules 22, classifier 13); medium 4/5 (`suspicious-03`, crypto with sure profit but nothing asked yet, flagged high: see open questions); low and none 8/8 not warned (`lookalike-03..05` → none); classifier p50 2.1 s, p90 3.0 s, max 3.8 s, 0/26 over the 6 s budget; no transient errors this time (the 3 from SCAM-03 re-ran fine). Left: `benign-04..08` (`uv run python -m scripts.eval_scam`, after the daily quota resets).
 
 ## Next
 
-- `SCAM-03b`: finish the live eval (`uv run python -m scripts.eval_scam`, resumes from its cache): 19 cases left (`other-04` and every medium, low and none case), so the classifier's false alarms on look-alikes are still unmeasured. Also see whether the transient classifier errors repeat (now logged).
 - `NOTI-02b`: live check with a real bot (user creates it with @BotFather, sets `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME`): connect from the dashboard, then a scam case in text chat → Telegram on a phone (criterion 5).
 - `SCAM-05` (if time allows): post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
 
@@ -68,6 +68,7 @@ Update after every meaningful implementation change.
 - Public demo hotline number for `/demo` (depends on real telephony), and whether the footer should name the university.
 - Orphaned elders: if an owner deletes their account, the elder stays but pending link requests have nobody to approve them.
 - Link request notifications: owners only see requests on the dashboard until the Notification Service exists.
+- Classifier calls a scam story high when nothing is asked yet (`suspicious-03`: crypto with sure profit), against its own definition of high, so the family would get a Telegram alert. Accept it, cap such a verdict at medium in the engine (no money, code, personal data or link/app signal), or tighten the prompt (`PROMPT_VERSION` 2: the ~31 cached verdicts are re-run, 2 days of free-tier quota)?
 
 ## Architecture decisions
 
@@ -115,7 +116,7 @@ Update after every meaningful implementation change.
 
 - Dograh runs and tools: tool calls (name, LLM arguments, result, timestamps) are in `workflow_runs.logs -> realtime_feedback_events` (`rtf-function-call-start`/`-end`); text chats leave `logs.conversation` empty (query in `dograh/README.md`). Tools are loaded by UUID at run time, so tool edits need no workflow publish. Descriptions pasted from the JSON exports must drop the JSON escapes (`\"`).
 
-- Scam eval: `scripts.eval_scam` caches classifier verdicts in `backend/.cache/scam_eval/<model>.jsonl` (gitignored), keyed by situation + `PROMPT_VERSION`; on a 429 it stops and the next run goes on. Use `--limit N` to keep some daily quota for live call tests. `--rules-only` needs no DB or key.
+- Scam eval: `scripts.eval_scam` caches classifier verdicts in `backend/.cache/scam_eval/<model>.jsonl` (gitignored), keyed by situation + `PROMPT_VERSION`. The free tier also has a per-minute limit (12 back-to-back calls hit it): calls start 6 s apart, a 429 is retried once after 65 s, and a second 429 (daily quota) stops the run; the next run goes on. The daily quota resets at midnight Pacific time (15:00 in Vietnam, 14:00 during US daylight saving time). Use `--limit N` to keep some daily quota for live call tests. `--rules-only` needs no DB or key.
 
 - Smoke runs with a second backend process: its scheduler works on every row of its database, so against the dev DB it handles the user's own pending work (a NOTI-02 smoke marked a real pending alert `skipped`; restored). Point such runs at a throwaway database, or turn the jobs off. `TELEGRAM_API_BASE_URL` points the bot at a local fake Bot API for end-to-end checks without a real bot.
 

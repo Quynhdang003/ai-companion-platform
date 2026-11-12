@@ -4,7 +4,7 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
 
 | Path | What |
 |---|---|
-| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b; v16 published, the SCAM-04b changes become v17 once applied): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
+| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b; v20 published: same nodes, prompts and edges as this export, Context Variable `caller_number` set to a test number): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
 | `tools/confirm_activation.json` | HTTP tool body for `POST /api/v1/tools/`. |
 | `tools/search_knowledge.json` | HTTP tool body for `POST /api/v1/tools/` (RAG-02b). |
 | `tools/check_scam.json` | HTTP tool body for `POST /api/v1/tools/` (SCAM-04b). Validated with Dograh 1.50.0's `CreateToolRequest`. |
@@ -63,7 +63,7 @@ In the Dograh UI (http://localhost:3010):
    - Start Call → pre-call data fetch, greeting, prompt, tools (all three).
    - Webhook node → URL, method, credential, payload.
    - Settings → **Context Variables**: `caller_number` (+ empty `called_number`). Dograh sends these as `from_number` / `to_number` for web and text test calls.
-   - **Model configuration** (workflow override, as published in version 16):
+   - **Model configuration** (workflow override, unchanged from version 16 to 20):
      - LLM, STT and TTS use the Dograh-managed connection (`Dograh`).
      - LLM model `default`; STT language `vi`; TTS voice `dg_voice_f6111af0943623935399` ("Ngoc - Diligent Resolver", Vietnamese).
      - Voice calls run on this config since DG-01c (Azure Speech dropped). DG-01b's text-chat tests used LLM = `Gemini` (`gemini-3.5-flash`).
