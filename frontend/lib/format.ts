@@ -29,6 +29,13 @@ export function formatTime(iso: string): string {
   return timeFormatter.format(new Date(iso));
 }
 
+const numberFormatter = new Intl.NumberFormat("vi-VN");
+
+/** `20000` → `20.000`. */
+export function formatNumber(value: number): string {
+  return numberFormatter.format(value);
+}
+
 /** Seconds → `45 giây`, `3 phút 5 giây`, `1 giờ 2 phút`. */
 export function formatDuration(seconds: number): string {
   if (seconds < 60) {

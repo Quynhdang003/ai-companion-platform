@@ -156,3 +156,35 @@ export const callPageSchema = z.object({
   next_before: timestamp.nullable(),
 });
 export type CallPage = z.infer<typeof callPageSchema>;
+
+/** Body limits of the admin KB routes (`backend/app/schemas/kb.py`). */
+export const KB_TITLE_MAX = 200;
+export const KB_CONTENT_MAX = 20_000;
+export const KB_SOURCE_MAX = 500;
+export const KB_QUERY_MAX = 200;
+
+/** `GET /api/admin/kb/documents`: a document without its text. */
+export const kbDocumentSummarySchema = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  // File name or URL it came from, for admins.
+  source: z.string().nullable(),
+  // How many searchable pieces it was indexed as.
+  chunk_count: z.number().int(),
+  created_at: timestamp,
+  updated_at: timestamp,
+});
+export type KbDocumentSummary = z.infer<typeof kbDocumentSummarySchema>;
+
+/** `GET|POST|PUT /api/admin/kb/documents[/{id}]` */
+export const kbDocumentSchema = kbDocumentSummarySchema.extend({
+  content: z.string(),
+});
+export type KbDocument = z.infer<typeof kbDocumentSchema>;
+
+/** `POST|PUT /api/admin/kb/documents[/{id}]` body. */
+export type KbDocumentInput = {
+  title: string;
+  content: string;
+  source: string | null;
+};

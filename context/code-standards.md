@@ -61,7 +61,7 @@
 - Request-time client hooks (`usePathname`, `useSearchParams`) count as request data too: on dynamic routes (e.g. the `[[...sign-in]]` catch-all) they fail the prerender outside `<Suspense>`. Shared chrome takes such values as props instead (e.g. `PublicHero current="/demo"` for the active nav item).
 - Backend calls go through one typed API client in `lib/api/` (`createApiClient`; `getServerApi()` on the server, `useApi()` in Client Components), attaching the Clerk token; responses parsed with Zod schemas in `lib/api/schemas.ts`, errors thrown as `ApiError` (`status`, `code`).
 - Clerk Core 3 (`@clerk/nextjs` 7): `<SignedIn>`, `<SignedOut>` and `<Protect>` are removed; use `<Show when=...>`.
-- Forms: React Hook Form + Zod; toasts via Sonner.
+- Forms: React Hook Form + Zod; toasts via Sonner. Each layout that shows toasts mounts `<Toaster theme="light" position="top-center" />` itself (`app/dashboard/layout.tsx`, `app/admin/layout.tsx`): a page under a new layout without one shows none. Read a watched field with `useWatch`, not `watch` (React Compiler). Dialogs holding a long form pass `disablePointerDismissal`.
 
 ## Styling
 
