@@ -4,11 +4,16 @@ Update after every meaningful implementation change.
 
 ## Current phase
 
-- Week 3 (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07, Week 2 (memory across calls, knowledge base search) finished 2026-11-09.
+- Week 4, the last (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07, Week 2 (memory across calls, knowledge base search) finished 2026-11-09, Week 3 (scam detection in calls, Telegram alerts to family) finished 2026-11-16.
 
 ## Current goal
 
-- Week 3: scam detection during calls (criterion 5). The agent calls `check_scam` when the caller tells it about a suspicious call or request. A two-layer engine (rules, then Gemini with retrieved scam patterns) returns a spoken warning; on high risk the elder's family gets a Telegram alert (type, level, time only). Reuses the hybrid search helpers (`app/services/rag/search.py`) and the background job pattern (`app/services/memory/job.py`).
+- Week 4: close the three open criteria, then re-check all eight.
+  - Criterion 6: voice ride booking on the self-built simulator (quote → verbal confirmation → book, fault cases), with ride sharing to family under the elder's control.
+  - Criterion 7: family sees call activity for the elders they manage.
+  - Criterion 8: an admin adds a KB document on the website and the AI answers from it.
+- Order: rides first (largest risk: new service, prompt, voice check), then call activity, then admin KB. The three groups don't depend on each other: if rides are blocked (Gemini quota, Dograh), work on another group meanwhile.
+- Reuses the Dograh tool pattern (`app/api/dograh/tools.py`), the background job pattern (`app/services/memory/job.py`), the family send rules (`app/services/notification/scam_alerts.py`) and KB ingest (`app/services/rag/ingest.py`).
 
 ## Completed
 
@@ -52,26 +57,54 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- Week 3 goal (criterion 5) is done. Not yet planned: criterion 6 (ride booking: `ride-sim` has `/health` only) and criterion 7 (family call activity: `call_logs` are stored, but no web route or dashboard page shows them).
-- `SCAM-05` (if time allows): post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
+In this order, one unit at a time (about 41 h in all). Each unit gets its own detailed plan when it starts.
+
+Rides (criterion 6), branch `feat/ride-booking`:
+
+- `SIM-01` (ride-sim): simulator core.
+  - `POST /quotes`, `POST /bookings` (one booking per quote, safe to retry), `GET /bookings/{id}`, `POST /bookings/{id}/cancel`.
+  - Pricing per ride type (`bike`, `car4`, `car7`) with a peak multiplier; quotes expire.
+  - Drivers seeded around Hanoi from a fixed `seed`; states computed from timestamps, sped up by `time_scale`.
+  - SQLite store; `Router` and `Geocoder` interfaces, fakes only in this unit.
+- `SIM-02` (ride-sim): OSRM router and Photon geocoder with their fallbacks, `GET /places/search`, fault injection (`no_driver`, `driver_cancels`, `timeout`, `price_surge`) set at run time via `/sim/config`.
+- `RIDE-01` (backend): `RideProvider` + simulator adapter; tables for per-call place options, quotes and bookings; tools `search_location`, `get_ride_quote`, `book_ride`, for ACTIVE elders only.
+  - The LLM passes only numbered place options from `search_location`, never coordinates, prices or identifiers.
+  - `book_ride` takes no LLM parameter: it books the call's latest live quote, and refuses a quote younger than `RIDE_CONFIRM_MIN_SECONDS` (3 s), so a quote and a booking in the same turn can't happen.
+  - "Same as last time": the pre-call hook adds `last_ride`, and `search_location` lists places from the elder's earlier rides first.
+- `RIDE-02` (backend): tools `get_ride_status`, `cancel_ride`; a job syncing the status of open rides; a speakable message for each of the four fault cases.
+- `RIDE-03` (backend): the elder's ride sharing choice (`none` / `status` / `details`), tool `set_ride_sharing`, Telegram ride messages within that scope, checked when each is sent. First to defer if time runs short: without it nothing is shared.
+- `RIDE-04` (Dograh): the six ride tools + prompt (verbal confirmation before `book_ride`, `cancel_ride` and sharing changes). Text chat, then voice → criterion 6.
+
+Call activity (criterion 7), branch `feat/act-01-call-activity`:
+
+- `ACT-01a` (backend): `GET /api/elders/{id}` and `GET /api/elders/{id}/calls` (start time, duration, the call's scam alerts, 7- and 30-day counts). Linked family only, anyone else gets 404; no conversation content.
+- `ACT-01b` (frontend): `/dashboard/elders/[id]` (profile card, call list, scam alerts with a risk badge), linked from the elder cards → criterion 7.
+
+Admin KB (criterion 8), branch `feat/kb-01-admin-kb`:
+
+- `KB-01a` (backend): admin routes to list, read, add, edit and delete KB documents, embedded and indexed on save (reuses `app/services/rag/ingest.py`).
+- `KB-01b` (frontend): admin KB table with search and add/edit/delete dialogs → criterion 8, checked with an "official hotlines" document.
+
+Closing:
+
+- `CHK-02`: re-check all 8 criteria, prune session notes, update the README.
 
 ## Backlog (unscheduled)
 
-- Admin KB page: add and manage KB documents, embedded and indexed on save (the admin half of criterion 8; reuses `app/services/rag/ingest.py`). To be planned.
-- Admin scam patterns page: add and edit patterns per scam type (reuses `sync_patterns` in `app/services/scam/patterns.py`). To be planned with the admin KB page.
-- OSRM service in `infra/docker-compose.yml`, with the ride units.
+- `SCAM-05`: post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
+- Admin scam patterns page: add and edit patterns per scam type (reuses `sync_patterns` in `app/services/scam/patterns.py`; same shape as the admin KB page).
+- Deploy: Vercel (frontend) + VPS Docker Compose, with self-hosted OSRM and Photon in `infra/docker-compose.yml` (ride-sim only needs their URLs).
 - Web call simulation page; point `/demo` "Mở trang gọi thử" at it.
 - Public "Tầm nhìn" / "Tài nguyên" pages (waiting for design).
 
 ## Open questions
 
-- Geocoding: self-hosted Nominatim/Photon vs Goong API.
 - Real telephony provider (if time allows) and its caller ID format.
 - Data retention period for transcripts and recordings.
 - Public demo hotline number for `/demo` (depends on real telephony), and whether the footer should name the university.
 - Orphaned elders: if an owner deletes their account, the elder stays but pending link requests have nobody to approve them.
 - Link request notifications: owners only see requests on the dashboard until the Notification Service exists.
-- KB search too loose for hotline questions: in `NOTI-02b`, `search_knowledge` for "số tổng đài Viettel Post" returned the emergency-numbers doc with `found: true`, so the agent could read out an unrelated number. Tighten the thresholds, or add a KB doc on official hotlines?
+- KB search too loose for hotline questions: in `NOTI-02b`, `search_knowledge` for "số tổng đài Viettel Post" returned the emergency-numbers doc with `found: true`, so the agent could read out an unrelated number. Tighten the thresholds, or add a KB doc on official hotlines? Re-checked in `KB-01b`, which adds that doc through the admin page.
 
 ## Architecture decisions
 
@@ -79,6 +112,9 @@ Update after every meaningful implementation change.
 - Elder identity by phone + consent activation on first call: no account needed, records consent.
 - Per-call `session_token` via Preset Parameter: LLM can't spoof identity.
 - Self-built Ride Simulator, no Karhoo: no third-party dependency, full test control.
+- Ride simulator map data from public servers, behind `Router` and `Geocoder` interfaces (user decision, 2026-11-16): the OSRM demo server and public Photon, no setup or API key. Fallbacks keep a demo independent of them: straight-line distance × a factor when OSRM fails, a built-in list of Hanoi places when Photon fails. Only addresses are sent out, never names or phone numbers. Self-hosting both at deploy is a URL change.
+- Ride sharing with family is the elder's choice (user decision, 2026-11-16): `none`, `status` (booked, on the way, arrived, cancelled + time) or `details` (plus pickup, destination and plate number). Asked once on the first booking and stored with its time; changed or withdrawn by voice in any call, effective at once, also for a ride in progress. Not asked yet = nothing shared. No live vehicle location.
+- Rides leave now, no scheduled pickups: those need timed dispatch in the simulator. Ride tools are for ACTIVE elders only; family sees no rides on the dashboard, only the Telegram messages the elder allowed.
 - Hybrid search in PostgreSQL: no extra infra, tolerant to STT errors.
 - KB search open to every live call, unknown and pending-consent callers included: the KB holds no personal data, and callers can ask about the service before consenting.
 - Embeddings: `gemini-embedding-001` at 768 dims for memories and KB: smaller HNSW index, enough for short Vietnamese text. Changing it means a full re-index.
