@@ -181,3 +181,46 @@ async def test_no_usable_answer_is_unavailable(handler: Handler) -> None:
         # Errors never carry what was searched or where.
         assert "Láng" not in str(raised.value)
         assert "21.0205" not in str(raised.value)
+
+
+async def test_get_booking() -> None:
+    seen: list[httpx.Request] = []
+
+    booking = await _provider(_recording(200, BOOKING, seen)).get_booking("b1")
+
+    assert (booking.id, booking.status, booking.cancel_reason) == (
+        "b1",
+        RideStatus.DRIVER_ASSIGNED,
+        None,
+    )
+    [request] = seen
+    assert (request.method, request.url.path) == ("GET", "/bookings/b1")
+
+
+async def test_cancel() -> None:
+    seen: list[httpx.Request] = []
+    body = BOOKING | {"status": "CANCELLED", "cancel_reason": "rider", "pickup_eta_s": None}
+
+    booking = await _provider(_recording(200, body, seen)).cancel("b1")
+
+    assert (booking.status, booking.cancel_reason) == (RideStatus.CANCELLED, "rider")
+    [request] = seen
+    assert (request.method, request.url.path) == ("POST", "/bookings/b1/cancel")
+
+
+async def test_booking_ids_stay_one_path_segment() -> None:
+    seen: list[httpx.Request] = []
+
+    await _provider(_recording(200, BOOKING, seen)).get_booking("../quotes")
+
+    assert seen[0].url.raw_path == b"/bookings/..%2Fquotes"
+
+
+@pytest.mark.parametrize("code", ["ride_in_progress", "ride_completed", "booking_not_found"])
+async def test_cancel_refusals(code: str) -> None:
+    body = {"error": {"code": code, "message": "..."}}
+
+    with pytest.raises(RideRequestRefusedError) as raised:
+        await _provider(_recording(409, body, [])).cancel("b1")
+
+    assert raised.value.code == code

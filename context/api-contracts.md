@@ -97,6 +97,17 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
   - `no_quote` (nothing of that type quoted in this call), `quote_expired` (5 min, or the provider lost it: quote again), `no_driver`, `unavailable`.
   - After `unavailable` asking again is safe: the provider books a quote at most once and answers with that booking.
 
+- `POST /tools/get-ride-status` `{session_token}` → 200 `{status, message, ride_status, pickup_minutes, dropoff_minutes}`.
+  - The elder's current ride: their latest, whichever call booked it; one finished (`COMPLETED`/`CANCELLED`) over 6 h ago is no longer current.
+  - While it isn't finished, it's read from the provider and stored (status, driver, cancel reason). `message` says where it is: looking for a driver; driver's name, car and plate and the wait; arriving (get ready at the pickup); on the way (minutes left); arrived; cancelled (by the elder; by the driver, with an offer to book another; lost: the provider no longer knows it, with an offer to book again).
+  - `status`: `found`; `no_ride` (`ride_status: null`); `unavailable` (the provider didn't answer: `ride_status` as stored, no minutes).
+
+- `POST /tools/cancel-ride` `{session_token}` → 200 `{status, message}`. Call only after the caller confirmed.
+  - Cancels the current ride (as above) for the elder.
+  - `status`: `cancelled`; `already_cancelled` (by the elder before; by the driver or lost: `message` says so); `in_progress` (on board: too late); `completed`; `no_ride`; `unavailable` (nothing changed).
+
+- Ride sync job (`app/services/ride/sync.py`, every `RIDE_SYNC_INTERVAL_SECONDS`, 10): reads every open ride from the provider once per run and stores its status, driver and cancel reason; a ride the provider no longer knows becomes `CANCELLED`, reason `lost`. No answer stops the run until the next.
+
 - `POST /hooks/call-ended` `{workflow_run_id, duration_seconds?, disposition?, transcript_url?, recording_url?}` → 200 `{received: true}`. Dograh's end-of-call Webhook node; values are strings, `""` = not sent, `duration_seconds` is rounded to whole seconds.
   - Upserts one `call_logs` row for the run's `call_session` (Dograh retries deliveries).
   - A run without a call session (its pre-call hook never reached us) is ignored: 200, nothing stored.

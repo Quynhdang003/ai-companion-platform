@@ -53,6 +53,7 @@ Update after every meaningful implementation change.
 | `SIM-01` | Ride simulator core: quotes, bookings, seeded drivers, timestamp state machine, SQLite store | 66 tests (fake clock, fixed seed); real process at `TIME_SCALE=30`: quote → book → `COMPLETED` after 35 s, re-booking the quote 200, booking kept across a restart |
 | `SIM-02` | Ride simulator maps (OSRM, Photon, built-in places, fallbacks) and four faults via `/sim/config` | 127 tests + 2 `live` (public OSRM and Photon) pass. Real process: OSRM quote Lang Ha → Bach Mai 4.1 km; built-in places < 0.1 s, Photon 4.3–4.7 s then 0 s cached; `no_driver` 409, `driver_cancels` cancelled 2 s after booking at `TIME_SCALE=30`, `timeout` 504 after 4 s, `price_surge` 72k → 130k; map servers unreachable → estimated quote, built-in places only |
 | `RIDE-01` | `RideProvider` + simulator adapter, ride tables (`2743a0704e49`), tools `search_location`, `get_ride_quote`, `book_ride`, `last_ride` in the pre-call hook | 609 tests (77 new). Real backend (throwaway DB) + real ride-sim: built-in place 0.2 s, Photon address 2.5 s, OSRM quote 1.0 s; booking at once 409 `confirmation_required`, after 3.5 s booked, again the same ride; next call `last_ride` set (hook 10 ms) and both places found again from the earlier ride in 0.0 s; `price_surge`, `no_driver`, `timeout` (unavailable after 7 s), same place `too_short`, unknown option 404; pending and unknown callers 403 |
+| `RIDE-02` | Tools `get_ride_status`, `cancel_ride`; ride sync job; cancel reason and sync time (`092895d242f7`) | 645 tests (36 new). Real backend (throwaway DB, sync every 3 s) + real ride-sim at x30: status read out from looking for a driver to arrived in 38 s; a ride nobody asked about stored `COMPLETED` by the job; `driver_cancels` → driver cancelled message 3 s after booking; cancel, cancel again, cancel on board refused; `timeout` → status and cancel unavailable in 7.1 s, also while the job hits the same timeout |
 
 ## In progress
 
@@ -60,11 +61,10 @@ Update after every meaningful implementation change.
 
 ## Next
 
-In this order (about 26 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+In this order (about 22 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
 
 Rides (criterion 6), branch `feat/ride-booking`:
 
-- `RIDE-02` (backend): tools `get_ride_status`, `cancel_ride`; a job syncing the status of open rides; a speakable message for each of the four fault cases.
 - `RIDE-03` (backend): the elder's ride sharing choice (`none` / `status` / `details`), tool `set_ride_sharing`, Telegram ride messages within that scope, checked when each is sent. First to defer if time runs short: without it nothing is shared.
 - `RIDE-04` (Dograh): the six ride tools + prompt (verbal confirmation before `book_ride`, `cancel_ride` and sharing changes). Text chat, then voice → criterion 6.
   - Tool timeouts above the backend's 7 s provider wait (`search_location` can take ~6 s on public Photon for an address the simulator doesn't know), with a `delayed` filler, like `check_scam`.

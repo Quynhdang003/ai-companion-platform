@@ -29,6 +29,8 @@ TOOLS = [
     ("search-location", {"query": "Bạch Mai"}),
     ("get-ride-quote", {"pickup_ref": 1, "destination_ref": 2, "ride_type": "car4"}),
     ("book-ride", {"ride_type": "car4"}),
+    ("get-ride-status", {}),
+    ("cancel-ride", {}),
 ]
 
 

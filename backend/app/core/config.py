@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     telegram_poll_interval_seconds: int = 3
     # How often pending family scam alerts are sent (both jobs need a Telegram bot token).
     alert_job_interval_seconds: int = 5
+    # How often open rides are read from the ride provider.
+    ride_sync_interval_seconds: int = 10
 
 
 @lru_cache

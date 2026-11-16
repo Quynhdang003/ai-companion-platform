@@ -17,8 +17,10 @@ from app.services.notification.telegram import TelegramUpdate
 from app.services.ride.provider import (
     GeoPoint,
     ProviderBooking,
+    ProviderDriver,
     ProviderPlace,
     ProviderQuote,
+    RideRequestRefusedError,
 )
 
 
@@ -129,10 +131,13 @@ class FakeRideProvider:
     """`RideProvider` in memory, recording every call.
 
     `places` answer any search; `pickup_eta_s = None` means no driver near; set `surge`.
-    Put an exception in `errors["search_places" | "quote" | "book"]` to make that call
-    fail (remove it to let it work again). A quote is booked once: booking it again returns
-    the same booking, like the simulator.
+    Put an exception in `errors[<method name>]` to make that call fail (remove it to let it
+    work again). A quote is booked once: booking it again returns the same booking, like the
+    simulator. Tests move a ride along with `move` and make the provider forget it with
+    `forget`.
     """
+
+    DRIVER = ProviderDriver("Trần Đức Việt", "Toyota Vios", "30H-575.35")
 
     TRIP_S = 799
     DISTANCE_M = 4_132
@@ -146,7 +151,11 @@ class FakeRideProvider:
         self.searches: list[tuple[str, int]] = []
         self.quotes: list[tuple[RideType, GeoPoint, GeoPoint]] = []
         self.booked: list[str] = []
-        self._bookings: dict[str, ProviderBooking] = {}
+        self.read: list[str] = []
+        self.cancelled: list[str] = []
+        # Bookings by booking id; quote id -> booking id.
+        self.bookings: dict[str, ProviderBooking] = {}
+        self._by_quote: dict[str, str] = {}
 
     def _maybe_fail(self, method: str) -> None:
         if method in self.errors:
@@ -176,9 +185,9 @@ class FakeRideProvider:
     async def book(self, quote_id: str) -> ProviderBooking:
         self.booked.append(quote_id)
         self._maybe_fail("book")
-        if quote_id not in self._bookings:
+        if quote_id not in self._by_quote:
             eta = self.pickup_eta_s
-            self._bookings[quote_id] = ProviderBooking(
+            booking = ProviderBooking(
                 id=f"booking-{uuid.uuid4().hex[:8]}",
                 quote_id=quote_id,
                 status=RideStatus.REQUESTED,
@@ -186,4 +195,53 @@ class FakeRideProvider:
                 pickup_eta_s=eta,
                 dropoff_eta_s=None if eta is None else eta + self.TRIP_S,
             )
-        return self._bookings[quote_id]
+            self.bookings[booking.id] = booking
+            self._by_quote[quote_id] = booking.id
+        return self.bookings[self._by_quote[quote_id]]
+
+    async def get_booking(self, booking_id: str) -> ProviderBooking:
+        self.read.append(booking_id)
+        self._maybe_fail("get_booking")
+        return self._known(booking_id)
+
+    async def cancel(self, booking_id: str) -> ProviderBooking:
+        self.cancelled.append(booking_id)
+        self._maybe_fail("cancel")
+        booking = self._known(booking_id)
+        if booking.status is RideStatus.IN_PROGRESS:
+            raise RideRequestRefusedError("ride_in_progress")
+        if booking.status is RideStatus.COMPLETED:
+            raise RideRequestRefusedError("ride_completed")
+        if booking.status is not RideStatus.CANCELLED:
+            self.move(booking_id, RideStatus.CANCELLED, cancel_reason="rider")
+        return self.bookings[booking_id]
+
+    def move(
+        self,
+        booking_id: str,
+        status: RideStatus,
+        *,
+        driver: ProviderDriver | None = DRIVER,
+        pickup_eta_s: int | None = None,
+        dropoff_eta_s: int | None = None,
+        cancel_reason: str | None = None,
+    ) -> None:
+        """Put the ride in `status`, as the provider would see it now."""
+        booking = self.bookings[booking_id]
+        self.bookings[booking_id] = ProviderBooking(
+            id=booking.id,
+            quote_id=booking.quote_id,
+            status=status,
+            driver=driver,
+            pickup_eta_s=pickup_eta_s,
+            dropoff_eta_s=dropoff_eta_s,
+            cancel_reason=cancel_reason,
+        )
+
+    def forget(self, booking_id: str) -> None:
+        del self.bookings[booking_id]
+
+    def _known(self, booking_id: str) -> ProviderBooking:
+        if booking_id not in self.bookings:
+            raise RideRequestRefusedError("booking_not_found")
+        return self.bookings[booking_id]

@@ -7,6 +7,7 @@ from app.models.elder_link_request import ElderLinkRequest, LinkRequestStatus
 from app.models.kb import KbChunk, KbDocument
 from app.models.memory import Memory, MemoryCategory
 from app.models.ride import (
+    CancelReason,
     PlaceSource,
     RideBooking,
     RidePlaceOption,
@@ -32,6 +33,7 @@ __all__ = [
     "Base",
     "CallLog",
     "CallSession",
+    "CancelReason",
     "Elder",
     "ElderFamily",
     "ElderLinkRequest",

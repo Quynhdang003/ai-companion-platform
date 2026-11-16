@@ -7,6 +7,7 @@ query or coordinates: they can tell where an elder lives.
 from datetime import datetime
 from functools import lru_cache
 from typing import Any, TypeVar
+from urllib.parse import quote as url_quote
 
 import httpx
 from pydantic import BaseModel, TypeAdapter, ValidationError
@@ -57,6 +58,7 @@ class _Booking(BaseModel):
     driver: _Driver | None
     pickup_eta_s: int | None
     dropoff_eta_s: int | None
+    cancel_reason: str | None = None
 
 
 class SimRideProvider:
@@ -94,17 +96,14 @@ class SimRideProvider:
         return ProviderQuote(**quote.model_dump())
 
     async def book(self, quote_id: str) -> ProviderBooking:
-        body = await self._request("POST", "/bookings", json={"quote_id": quote_id})
-        booking = _parse(_BOOKING, body)
-        driver = booking.driver
-        return ProviderBooking(
-            id=booking.id,
-            quote_id=booking.quote_id,
-            status=booking.status,
-            driver=None if driver is None else ProviderDriver(**driver.model_dump()),
-            pickup_eta_s=booking.pickup_eta_s,
-            dropoff_eta_s=booking.dropoff_eta_s,
-        )
+        return _booking(await self._request("POST", "/bookings", json={"quote_id": quote_id}))
+
+    async def get_booking(self, booking_id: str) -> ProviderBooking:
+        return _booking(await self._request("GET", f"/bookings/{url_quote(booking_id, safe='')}"))
+
+    async def cancel(self, booking_id: str) -> ProviderBooking:
+        path = f"/bookings/{url_quote(booking_id, safe='')}/cancel"
+        return _booking(await self._request("POST", path))
 
     async def _request(
         self,
@@ -140,6 +139,20 @@ class SimRideProvider:
 _PLACES = TypeAdapter(list[_Place])
 _QUOTE = TypeAdapter(_Quote)
 _BOOKING = TypeAdapter(_Booking)
+
+
+def _booking(body: Any) -> ProviderBooking:
+    booking = _parse(_BOOKING, body)
+    driver = booking.driver
+    return ProviderBooking(
+        id=booking.id,
+        quote_id=booking.quote_id,
+        status=booking.status,
+        driver=None if driver is None else ProviderDriver(**driver.model_dump()),
+        pickup_eta_s=booking.pickup_eta_s,
+        dropoff_eta_s=booking.dropoff_eta_s,
+        cancel_reason=booking.cancel_reason,
+    )
 
 
 def _parse(adapter: TypeAdapter[T], body: Any) -> T:

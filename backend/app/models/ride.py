@@ -38,6 +38,15 @@ class RideStatus(StrEnum):
     CANCELLED = "CANCELLED"
 
 
+FINISHED = frozenset({RideStatus.COMPLETED, RideStatus.CANCELLED})
+
+
+class CancelReason(StrEnum):
+    RIDER = "rider"  # the elder, through the agent
+    DRIVER = "driver"
+    LOST = "lost"  # the provider no longer knows the booking (e.g. the simulator was reset)
+
+
 class PlaceSource(StrEnum):
     PREVIOUS = "previous"  # a place of one of the elder's earlier rides
     PROVIDER = "provider"  # the ride provider's place search
@@ -147,5 +156,15 @@ class RideBooking(TimestampMixin, Base):
     driver_name: Mapped[str | None] = mapped_column(Text)
     driver_vehicle: Mapped[str | None] = mapped_column(Text)
     driver_plate: Mapped[str | None] = mapped_column(Text)
+    # Set once cancelled.
+    cancel_reason: Mapped[CancelReason | None] = mapped_column(
+        _str_enum(CancelReason, "cancel_reason")
+    )
+    # When the status was last read from the provider (`app/services/ride/sync.py`).
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     quote: Mapped[RideQuote] = relationship(lazy="joined", innerjoin=True)
+
+    @property
+    def finished(self) -> bool:
+        return self.status in FINISHED

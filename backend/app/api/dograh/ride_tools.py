@@ -1,7 +1,8 @@
 """Dograh tools for booking a ride (flow C), for ACTIVE elders only.
 
 The agent names places by the option numbers `search_location` gave it, and books by ride
-type: coordinates, prices and ids never come from the LLM. `book_ride` refuses a quote too
+type: coordinates, prices and ids never come from the LLM. Status and cancel act on the
+elder's current ride, whichever call booked it. `book_ride` refuses a quote too
 new to have been read out and agreed to (architecture invariant 5).
 """
 
@@ -16,16 +17,19 @@ from app.core.db import DbSession
 from app.core.dograh_auth import require_dograh_key
 from app.core.errors import AppError
 from app.models import CallSession, Elder, ElderStatus
+from app.schemas.dograh import SessionToolRequest
 from app.schemas.ride import (
     BookRideOut,
     BookRideRequest,
+    CancelRideOut,
     PlaceOptionOut,
     RideQuoteOut,
     RideQuoteRequest,
+    RideStatusOut,
     SearchLocationOut,
     SearchLocationRequest,
 )
-from app.services.ride import booking, messages, places
+from app.services.ride import booking, messages, places, rides
 from app.services.ride.booking import (
     BookStatus,
     ConfirmationRequiredError,
@@ -34,6 +38,7 @@ from app.services.ride.booking import (
 )
 from app.services.ride.places import SearchStatus
 from app.services.ride.provider import RideProvider
+from app.services.ride.rides import CancelOutcome, StatusOutcome
 from app.services.ride.simulator import get_ride_provider
 
 router = APIRouter(prefix="/tools", tags=["dograh"], dependencies=[Depends(require_dograh_key)])
@@ -158,3 +163,47 @@ async def book_ride(body: BookRideRequest, db: DbSession, provider: Provider) ->
         ride_type=body.ride_type,
         pickup_minutes=_minutes(result.pickup_eta_s),
     )
+
+
+@router.post("/get-ride-status", response_model=RideStatusOut)
+async def get_ride_status(
+    body: SessionToolRequest, db: DbSession, provider: Provider
+) -> RideStatusOut:
+    """Where the elder's current ride is: driver, car, how long until pickup or arrival."""
+    call = await _active_call(db, body.session_token)
+    view = await rides.ride_status(db, provider, call, now=datetime.now(UTC))
+    await db.commit()
+    ride = view.booking
+    if ride is None:
+        return RideStatusOut(status=view.outcome, message=messages.NO_RIDE)
+    if view.outcome is StatusOutcome.UNAVAILABLE:
+        message = messages.STATUS_UNAVAILABLE
+    else:
+        message = messages.ride_status(ride, view.pickup_eta_s, view.dropoff_eta_s)
+    return RideStatusOut(
+        status=view.outcome,
+        message=message,
+        ride_status=ride.status,
+        pickup_minutes=_minutes(view.pickup_eta_s),
+        dropoff_minutes=_minutes(view.dropoff_eta_s),
+    )
+
+
+@router.post("/cancel-ride", response_model=CancelRideOut)
+async def cancel_ride(body: SessionToolRequest, db: DbSession, provider: Provider) -> CancelRideOut:
+    """Call only after the caller clearly confirmed cancelling their current ride."""
+    call = await _active_call(db, body.session_token)
+    result = await rides.cancel_ride(db, provider, call, now=datetime.now(UTC))
+    await db.commit()
+    ride = result.booking
+    if ride is None:
+        message = messages.NO_RIDE_TO_CANCEL
+    else:
+        message = {
+            CancelOutcome.CANCELLED: messages.cancelled(ride),
+            CancelOutcome.ALREADY_CANCELLED: messages.already_cancelled(ride),
+            CancelOutcome.IN_PROGRESS: messages.CANCEL_IN_PROGRESS,
+            CancelOutcome.COMPLETED: messages.cancel_completed(ride),
+            CancelOutcome.UNAVAILABLE: messages.CANCEL_UNAVAILABLE,
+        }[result.outcome]
+    return CancelRideOut(status=result.outcome, message=message)

@@ -17,6 +17,9 @@ TRIP_TOO_SHORT = "trip_too_short"
 QUOTE_EXPIRED = "quote_expired"
 QUOTE_NOT_FOUND = "quote_not_found"
 NO_DRIVER_AVAILABLE = "no_driver_available"
+BOOKING_NOT_FOUND = "booking_not_found"
+RIDE_IN_PROGRESS = "ride_in_progress"
+RIDE_COMPLETED = "ride_completed"
 
 _EARTH_RADIUS_M = 6_371_000
 
@@ -74,6 +77,8 @@ class ProviderBooking:
     # Seconds left; None once they no longer apply.
     pickup_eta_s: int | None
     dropoff_eta_s: int | None
+    # "rider" or "driver" once cancelled.
+    cancel_reason: str | None = None
 
 
 class RideProviderError(Exception):
@@ -107,4 +112,13 @@ class RideProvider(Protocol):
 
     async def book(self, quote_id: str) -> ProviderBooking:
         """Book a quote; booking it again returns the same booking."""
+        ...
+
+    async def get_booking(self, booking_id: str) -> ProviderBooking:
+        """The booking as it is now."""
+        ...
+
+    async def cancel(self, booking_id: str) -> ProviderBooking:
+        """Cancel for the rider; cancelling a cancelled ride changes nothing. Refused once
+        the passenger is on board (`RIDE_IN_PROGRESS`) or the ride is over."""
         ...

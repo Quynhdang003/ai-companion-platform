@@ -3,7 +3,7 @@
 import math
 from collections.abc import Sequence
 
-from app.models import RidePlaceOption, RideType
+from app.models import CancelReason, RideBooking, RidePlaceOption, RideStatus, RideType
 
 RIDE_TYPE_LABELS = {
     RideType.BIKE: "xe máy",
@@ -106,3 +106,74 @@ def booked(ride_type: RideType, pickup: RidePlaceOption, pickup_eta_s: int | Non
     if pickup_eta_s is not None:
         text += f" Xe sẽ đến đón ở {pickup.name} sau khoảng {speak_duration(pickup_eta_s)}."
     return text
+
+
+NO_RIDE = "Dạ, hiện bác không có chuyến xe nào ạ."
+STATUS_UNAVAILABLE = (
+    "Dạ, hệ thống đặt xe đang chậm nên con chưa xem được xe đang ở đâu."
+    " Bác chờ một lát rồi hỏi lại con nhé."
+)
+NO_RIDE_TO_CANCEL = "Dạ, hiện bác không có chuyến xe nào để hủy ạ."
+CANCEL_IN_PROGRESS = "Dạ, bác đang ở trên xe rồi nên con không hủy được chuyến này ạ."
+CANCEL_UNAVAILABLE = (
+    "Dạ, hệ thống đặt xe đang chậm nên con chưa hủy được. Bác chờ một lát rồi con thử lại nhé."
+)
+
+
+def _car(ride: RideBooking) -> str:
+    """ "Toyota Vios biển số 30H-575.35", or the ride type before a driver is known."""
+    if ride.driver_vehicle and ride.driver_plate:
+        return f"{ride.driver_vehicle} biển số {ride.driver_plate}"
+    return RIDE_TYPE_LABELS[ride.quote.ride_type]
+
+
+def ride_status(ride: RideBooking, pickup_eta_s: int | None, dropoff_eta_s: int | None) -> str:
+    """Where the ride is, for the elder. ETAs are live (None: not known now)."""
+    pickup, destination = ride.quote.pickup.name, ride.quote.destination.name
+    match ride.status:
+        case RideStatus.REQUESTED:
+            text = "Dạ, hệ thống đang tìm tài xế cho bác ạ."
+            if pickup_eta_s is not None:
+                text += f" Xe dự kiến đến đón sau khoảng {speak_duration(pickup_eta_s)}."
+            return text
+        case RideStatus.DRIVER_ASSIGNED:
+            driver = f"tài xế {ride.driver_name}" if ride.driver_name else "tài xế"
+            text = f"Dạ, {driver} đã nhận chuyến, đi {_car(ride)}."
+            if pickup_eta_s is not None:
+                text += f" Xe sẽ đến đón ở {pickup} sau khoảng {speak_duration(pickup_eta_s)}."
+            return text
+        case RideStatus.ARRIVING:
+            text = f"Dạ, xe sắp đến rồi ạ, {_car(ride)}."
+            if pickup_eta_s is not None:
+                text += f" Còn khoảng {speak_duration(pickup_eta_s)} nữa."
+            return text + f" Bác chuẩn bị ra {pickup} nhé."
+        case RideStatus.IN_PROGRESS:
+            text = f"Dạ, bác đang trên đường đến {destination}"
+            if dropoff_eta_s is not None:
+                text += f", còn khoảng {speak_duration(dropoff_eta_s)} nữa"
+            return text + " ạ."
+        case RideStatus.COMPLETED:
+            return f"Dạ, chuyến xe đến {destination} đã hoàn thành rồi ạ."
+    if ride.cancel_reason is CancelReason.DRIVER:
+        return f"Dạ, tài xế đã hủy chuyến xe đi {destination}. Bác có muốn con đặt xe khác không ạ?"
+    if ride.cancel_reason is CancelReason.LOST:
+        return (
+            f"Dạ, con không còn thấy chuyến xe đi {destination} trong hệ thống nữa."
+            " Bác có muốn con đặt lại không ạ?"
+        )
+    return f"Dạ, chuyến xe đi {destination} đã được hủy rồi ạ."
+
+
+def cancelled(ride: RideBooking) -> str:
+    return f"Dạ, con đã hủy chuyến xe đi {ride.quote.destination.name} rồi ạ."
+
+
+def already_cancelled(ride: RideBooking) -> str:
+    if ride.cancel_reason is CancelReason.RIDER:
+        return f"Dạ, chuyến xe đi {ride.quote.destination.name} đã được hủy từ trước rồi ạ."
+    # Cancelled by the driver, or lost: the elder may not know yet.
+    return ride_status(ride, None, None)
+
+
+def cancel_completed(ride: RideBooking) -> str:
+    return f"Dạ, chuyến xe đi {ride.quote.destination.name} đã hoàn thành nên không hủy được nữa ạ."

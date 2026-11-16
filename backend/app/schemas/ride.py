@@ -2,10 +2,11 @@
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models import RideType
+from app.models import RideStatus, RideType
 from app.schemas.dograh import SessionToolRequest
 from app.services.ride.booking import BookStatus, QuoteStatus
 from app.services.ride.places import SearchStatus
+from app.services.ride.rides import CancelOutcome, StatusOutcome
 
 
 class SearchLocationRequest(SessionToolRequest):
@@ -63,3 +64,18 @@ class BookRideOut(BaseModel):
     ride_type: RideType
     # Set when the provider just booked it.
     pickup_minutes: int | None = None
+
+
+class RideStatusOut(BaseModel):
+    status: StatusOutcome
+    message: str
+    # The current ride's status (as stored when the provider didn't answer); null: no ride.
+    ride_status: RideStatus | None = None
+    # Live, when known.
+    pickup_minutes: int | None = None
+    dropoff_minutes: int | None = None
+
+
+class CancelRideOut(BaseModel):
+    status: CancelOutcome
+    message: str

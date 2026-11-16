@@ -37,6 +37,7 @@
   - A job whose failures are worth retrying soon (sends) waits a delay between attempts instead of retrying in the same run (`scam_alerts.py`: `RETRY_DELAY` from `updated_at`).
   - Jobs open sessions with a `SessionFactory` (`app/core/db.py`, default `SessionLocal`); tests pass `same_session(session)` (`tests/conftest.py`).
   - Tests call the per-row function directly with `FakeLLMClient`; the test client never starts the scheduler.
+  - A job that waits on a slow outside service for a row a user request may also touch doesn't hold the row lock meanwhile (`ride/sync.py`): it claims the row (a timestamp) and commits, asks the service, then writes the answer only if the row wasn't read by a request since. A user request never waits behind a slow job.
 - Ride simulator (`ride-sim/app/`):
   - State lives in SQLite (SQLAlchemy 2 async + aiosqlite). Tables are created at startup, no Alembic: the state is disposable. Any table change bumps `SCHEMA_VERSION` (`app/db.py`, kept in SQLite's `user_version`), and a database of another version is emptied at startup.
   - Datetime columns use `UtcDateTime` (`app/db.py`): SQLite keeps no time zone.

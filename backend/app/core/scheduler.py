@@ -9,6 +9,7 @@ from app.services.memory.job import run_memory_job
 from app.services.notification.scam_alerts import run_alert_job
 from app.services.notification.telegram import TelegramBot
 from app.services.notification.telegram_updates import TelegramUpdatePoller
+from app.services.ride.sync import run_ride_sync_job
 
 logger = logging.getLogger(__name__)
 
@@ -50,5 +51,13 @@ def start_scheduler(settings: Settings) -> AsyncIOScheduler | None:
         )
     else:
         logger.warning("TELEGRAM_BOT_TOKEN is not set: Telegram connect and alerts are off")
+    scheduler.add_job(
+        run_ride_sync_job,
+        "interval",
+        seconds=settings.ride_sync_interval_seconds,
+        id="ride_sync",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     return scheduler
