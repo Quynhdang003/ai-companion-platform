@@ -34,9 +34,10 @@
   - Jobs open sessions with a `SessionFactory` (`app/core/db.py`, default `SessionLocal`); tests pass `same_session(session)` (`tests/conftest.py`).
   - Tests call the per-row function directly with `FakeLLMClient`; the test client never starts the scheduler.
 - Ride simulator (`ride-sim/app/`):
-  - State lives in SQLite (SQLAlchemy 2 async + aiosqlite). Tables are created at startup, no Alembic: the state is disposable, so a schema change means deleting the database file.
+  - State lives in SQLite (SQLAlchemy 2 async + aiosqlite). Tables are created at startup, no Alembic: the state is disposable. Any table change bumps `SCHEMA_VERSION` (`app/db.py`, kept in SQLite's `user_version`), and a database of another version is emptied at startup.
   - Datetime columns use `UtcDateTime` (`app/db.py`): SQLite keeps no time zone.
-  - Nothing reads the system clock directly. `create_app(settings, router=, clock=)` (`app/main.py`) takes the clock and the router; tests pass a `FakeClock`, a temp database and a fixed seed (`tests/conftest.py`: `make_client`).
+  - Nothing reads the system clock or sleeps directly. `create_app(settings, router=, geocoder=, clock=, sleep=)` (`app/main.py`) takes them all; tests pass a `FakeClock`, a `FakeSleep`, a temp database and a fixed seed, and no map servers unless a test passes a fake (`tests/conftest.py`: `make_client`; `FakeGeocoder` in `tests/helpers.py`).
+  - Map servers sit behind `Router` (`app/routing.py`) and `Geocoder` (`app/geocoding.py`) and never fail a request: an error or timeout falls back (straight-line estimate, built-in places or none). Their logs carry neither coordinates nor queries. Tests mock them with httpx `MockTransport`; tests against the real servers are marked `live`.
   - A booking's status is never stored or updated: `app/state.py` computes it from the booking's timestamps. Anything that changes a ride later (a cancellation, a fault) is a timestamp too.
   - Errors are raised as `AppError(status, code, message)` with an English message; the backend turns codes into speakable Vietnamese.
 

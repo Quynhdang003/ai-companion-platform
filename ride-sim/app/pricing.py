@@ -37,11 +37,15 @@ def is_peak(at: datetime) -> bool:
     return any(start <= local < end for start, end in PEAK_HOURS)
 
 
-def price_vnd(ride_type: RideType, distance_m: int, duration_s: int, *, peak: bool) -> int:
+def price_vnd(
+    ride_type: RideType, distance_m: int, duration_s: int, *, peak: bool, surge: float = 1.0
+) -> int:
+    """`surge` multiplies the price on top of the peak multiplier."""
     fare = FARES[ride_type]
     price = (
         fare.base_vnd + fare.per_km_vnd * distance_m / 1000 + fare.per_minute_vnd * duration_s / 60
     )
     if peak:
         price *= PEAK_MULTIPLIER
+    price *= surge
     return int(price / ROUND_TO_VND + 0.5) * ROUND_TO_VND

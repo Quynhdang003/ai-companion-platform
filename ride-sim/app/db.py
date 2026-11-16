@@ -1,16 +1,23 @@
 """SQLite storage, separate from the backend's database.
 
-The tables are created at startup (no Alembic here): the simulator's state is disposable,
-so a schema change means deleting the database file.
+The tables are created at startup (no Alembic here). The simulator's state is disposable:
+a database made for other tables is emptied and rebuilt (`SCHEMA_VERSION`).
 """
 
+import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, inspect
 from sqlalchemy.engine import Dialect
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.types import TypeDecorator
+
+logger = logging.getLogger(__name__)
+
+# Bump on any change to the tables. Kept in SQLite's `user_version`; a database with
+# another version is emptied at startup.
+SCHEMA_VERSION = 2
 
 
 class UtcDateTime(TypeDecorator[datetime]):
@@ -34,6 +41,15 @@ class Base(DeclarativeBase):
     pass
 
 
-async def create_tables(engine: AsyncEngine) -> None:
+async def prepare_database(engine: AsyncEngine) -> None:
+    """Create the tables, after emptying a database made by another schema version."""
     async with engine.begin() as conn:
+        version = (await conn.exec_driver_sql("PRAGMA user_version")).scalar_one()
+        if version != SCHEMA_VERSION:
+            if await conn.run_sync(lambda sync: bool(inspect(sync).get_table_names())):
+                logger.warning(
+                    "Database schema %s, expected %s: starting empty", version, SCHEMA_VERSION
+                )
+                await conn.run_sync(Base.metadata.drop_all)
+            await conn.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
         await conn.run_sync(Base.metadata.create_all)

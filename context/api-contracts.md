@@ -87,24 +87,42 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
 
 ## Ride Simulator API (`ride-sim`, port 8001)
 
-Called only by the backend's `RideProvider` adapter. No auth: an internal service. Same error body as the backend (422 `validation_error` for an invalid body). Coordinates are `{lat, lng}`; prices are VND in whole thousands; durations and ETAs are simulated seconds, and `TIME_SCALE` simulated seconds pass per real second.
+Called only by the backend's `RideProvider` adapter. No auth: an internal service. Same error body as the backend (422 `validation_error` for an invalid body or query). Coordinates are `{lat, lng}`; prices are VND in whole thousands; durations and ETAs are simulated seconds, and `time_scale` simulated seconds pass per real second.
 
 | Route | Success | Errors |
 |---|---|---|
+| `GET /places/search?q=&limit=` (`q` 1–200 chars, `limit` 1–10, default 5) | 200 `[{name, address, lat, lng, source}]`, best first; `[]` when nothing matches | |
 | `POST /quotes` `{pickup, destination, ride_type}` | 201 quote | 422 `out_of_service_area`, 422 `trip_too_short` |
 | `POST /bookings` `{quote_id}` | 201 booking; 200 with the existing booking when the quote was booked before (safe to retry) | 404 `quote_not_found`, 409 `quote_expired`, 409 `no_driver_available` |
 | `GET /bookings/{id}` | 200 booking | 404 `booking_not_found` |
 | `POST /bookings/{id}/cancel` | 200 booking, now `CANCELLED` with `cancel_reason: "rider"`; repeating it changes nothing | 404 `booking_not_found`, 409 `ride_in_progress`, 409 `ride_completed` |
+| `GET /sim/config` | 200 `{time_scale, fault}` | |
+| `PATCH /sim/config` `{time_scale?, fault?}` | 200 `{time_scale, fault}`: only the fields sent change; `"fault": null` turns it off | |
+
+Under the `timeout` fault, every route above `/sim/config` hangs `FAULT_TIMEOUT_SECONDS` (15), then answers 504 `provider_timeout` having done nothing. `/sim/*` and `/health` never hang.
 
 - `ride_type`: `bike` | `car4` | `car7`. Price = base + per km + per minute (`ride-sim/app/pricing.py`), × 1.3 at peak hours (07:00–09:00 and 17:00–19:30, Vietnam time).
-- Quote: `{id, ride_type, pickup, destination, distance_m, duration_s, price_vnd, peak, estimated, pickup_eta_s, expires_at}`.
-  - `estimated: true`: distance and duration are a straight-line estimate (× 1.35, at 22 km/h), not a road route. The only router until `SIM-02`.
+- Places (`app/geocoding.py`):
+  - A query matching the simulator's built-in list of well-known Hanoi places (hospitals, markets, stations, landmarks; `app/data/hanoi_places.json`) gets only those (`source: "builtin"`), at once.
+  - Anything else goes to Photon (`source: "photon"`, within greater Hanoi, `GEOCODER_TIMEOUT_SECONDS` 6). Its answers are kept in memory, so the same query again is instant.
+  - Photon off, slow or failing → `[]`, never an error. Bus stops, motorways, rail lines and boundaries are dropped; results within 150 m of each other count once.
+  - Matching ignores diacritics, case and word order; "Hà Nội" in the query is ignored. `address` is the street address when known, else `""`.
+- Quote: `{id, ride_type, pickup, destination, distance_m, duration_s, price_vnd, peak, surge, estimated, pickup_eta_s, expires_at}`.
+  - Distance and duration come from OSRM (`ROUTER_TIMEOUT_SECONDS` 2), its duration × 1.8 for Hanoi traffic. `estimated: true`: OSRM was off, slow or failing, and they are a straight-line estimate (× 1.35, at 22 km/h).
+  - `surge: true`: priced × `SURGE_MULTIPLIER` (1.8) under the `price_surge` fault. A quote keeps its price whatever the fault is when it is booked.
   - `pickup_eta_s`: until the nearest free driver would reach the pickup; `null` when none is within 10 km.
   - Bookable for `QUOTE_TTL_SECONDS` (300, real seconds). A trip starts and ends in greater Hanoi and is at least 200 m long.
 - Booking: `{id, quote_id, status, ride_type, pickup, destination, distance_m, duration_s, price_vnd, driver, pickup_eta_s, dropoff_eta_s, requested_at, cancelled_at, cancel_reason}`.
   - `status`: `REQUESTED` → `DRIVER_ASSIGNED` → `ARRIVING` → `IN_PROGRESS` → `COMPLETED`; `CANCELLED` is possible until `IN_PROGRESS`. It isn't stored: it is read off times fixed when the quote is booked (a driver accepts after 20 s; `ARRIVING` starts 120 s before the pickup).
   - `driver` `{name, vehicle, plate}`: `null` until a driver has accepted. `pickup_eta_s` is `null` once the passenger is on board; `dropoff_eta_s` once the ride is completed or cancelled.
   - The nearest free driver of the ride type takes the booking and is busy until its drop-off or cancellation. Drivers come from `SEED` (same seed, same drivers) and wait in inner Hanoi, so a pickup at Noi Bai airport finds none.
+  - `cancel_reason`: `rider` (`POST /bookings/{id}/cancel`) or `driver` (`driver_cancels` fault). A cancellation shows only once it has happened.
+- Faults (`fault`, one at a time; `FAULT` at start, then `PATCH /sim/config`). They hit what is quoted or booked while they are on; rides already booked go on.
+  - `no_driver`: quotes as usual, booking → 409 `no_driver_available`. The same quote can be booked once it is off.
+  - `driver_cancels`: a new booking gets a driver, who cancels 45 s (simulated) after accepting, before the pickup.
+  - `timeout`: see above.
+  - `price_surge`: new quotes cost more (`surge: true`).
+- `time_scale` (`TIME_SCALE` at start, then `PATCH /sim/config`) applies to rides booked from then on.
 
 ## Dograh platform contract
 

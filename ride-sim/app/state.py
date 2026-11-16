@@ -18,6 +18,10 @@ ASSIGN_DELAY_S = 20
 # The driver counts as arriving for this long before reaching the pickup.
 ARRIVING_WINDOW_S = 120
 
+# Under the `driver_cancels` fault the driver gives up this long after accepting: always
+# before the pickup, which is at least a minute away (`MIN_PICKUP_DURATION_S`).
+DRIVER_CANCEL_DELAY_S = 45
+
 # A ride can be cancelled until the passenger is on board.
 CANCELLABLE = frozenset({RideStatus.REQUESTED, RideStatus.DRIVER_ASSIGNED, RideStatus.ARRIVING})
 
@@ -48,6 +52,10 @@ def plan_timeline(
         pickup_at=after(pickup_after),
         dropoff_at=after(pickup_after + trip_duration_s),
     )
+
+
+def driver_cancel_time(timeline: Timeline, time_scale: float) -> datetime:
+    return timeline.assigned_at + timedelta(seconds=DRIVER_CANCEL_DELAY_S / time_scale)
 
 
 def status_at(now: datetime, timeline: Timeline, cancelled_at: datetime | None) -> RideStatus:

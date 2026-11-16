@@ -51,6 +51,7 @@ Update after every meaningful implementation change.
 | `SCAM-03c` | Engine caps a classifier `high` at `medium` when no signal from either layer is a request (`ASK_SIGNALS` in `engine.py`) | 532 tests (cap fires on a fake `high` verdict; a request named by either layer keeps `high`); rules find a request in all 13 classifier-decided high cases, so none can be capped; `suspicious-03` re-run live → medium (this time the classifier itself said medium: it is not stable on this case, the cap is); eval on 53 cases: nothing flagged high or warned beyond its label |
 | `NOTI-02b` | Live check with the real Telegram bot: dashboard connect, then a scam case in text chat → alert on the family's Telegram. **Criterion 5 done** (with `SCAM-03b`: 35/35 high flagged across all 7 types + `other`) | 2026-11-16. Bot token valid, no webhook; connect from the dashboard by the owner of the ACTIVE elder. Text chat, workflow v21 (`caller_number` = the ACTIVE test number): money-sent-by-mistake story with a link → `check_scam` high / other by classifier, warning said, event alert `sent` 5.6 s after the check (Bot API accepted the message). Same session's v20 run as the unknown number: OTP → high / bank by rule, warned, nothing stored, no alert |
 | `SIM-01` | Ride simulator core: quotes, bookings, seeded drivers, timestamp state machine, SQLite store | 66 tests (fake clock, fixed seed); real process at `TIME_SCALE=30`: quote → book → `COMPLETED` after 35 s, re-booking the quote 200, booking kept across a restart |
+| `SIM-02` | Ride simulator maps (OSRM, Photon, built-in places, fallbacks) and four faults via `/sim/config` | 127 tests + 2 `live` (public OSRM and Photon) pass. Real process: OSRM quote Lang Ha → Bach Mai 4.1 km; built-in places < 0.1 s, Photon 4.3–4.7 s then 0 s cached; `no_driver` 409, `driver_cancels` cancelled 2 s after booking at `TIME_SCALE=30`, `timeout` 504 after 4 s, `price_surge` 72k → 130k; map servers unreachable → estimated quote, built-in places only |
 
 ## In progress
 
@@ -58,12 +59,12 @@ Update after every meaningful implementation change.
 
 ## Next
 
-In this order (about 36 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+In this order (about 32 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
 
 Rides (criterion 6), branch `feat/ride-booking`:
 
-- `SIM-02` (ride-sim): OSRM router (falling back to the straight-line `StraightLineRouter` from `SIM-01`), the `Geocoder` interface with Photon and its built-in place list fallback, `GET /places/search`, fault injection (`no_driver`, `driver_cancels`, `timeout`, `price_surge`) set at run time via `/sim/config`.
 - `RIDE-01` (backend): `RideProvider` + simulator adapter; tables for per-call place options, quotes and bookings; tools `search_location`, `get_ride_quote`, `book_ride`, for ACTIVE elders only.
+  - `search_location` can wait up to ~6 s on public Photon for an address the simulator doesn't know (decisions): its adapter timeout, Dograh tool timeout and filler message are sized for it, like `check_scam`.
   - The LLM passes only numbered place options from `search_location`, never coordinates, prices or identifiers.
   - `book_ride` takes no LLM parameter: it books the call's latest live quote, and refuses a quote younger than `RIDE_CONFIRM_MIN_SECONDS` (3 s), so a quote and a booking in the same turn can't happen.
   - "Same as last time": the pre-call hook adds `last_ride`, and `search_location` lists places from the elder's earlier rides first.
@@ -109,6 +110,7 @@ Closing:
 - Per-call `session_token` via Preset Parameter: LLM can't spoof identity.
 - Self-built Ride Simulator, no Karhoo: no third-party dependency, full test control.
 - Ride simulator map data from public servers, behind `Router` and `Geocoder` interfaces (user decision, 2026-11-16): the OSRM demo server and public Photon, no setup or API key. Fallbacks keep a demo independent of them: straight-line distance × a factor when OSRM fails, a built-in list of Hanoi places when Photon fails. Only addresses are sent out, never names or phone numbers. Self-hosting both at deploy is a URL change.
+- Place search answers well-known places from the simulator's built-in list (41 places from OpenStreetMap) without asking Photon, and asks Photon only for anything else, with a 6 s timeout and an in-memory cache: public Photon took 3–6 s from here on 2026-11-16 (even its `/status`), so it only serves addresses the list doesn't have. A more precise request ("phố Bạch Mai" instead of "Bạch Mai") reaches Photon.
 - Ride sharing with family is the elder's choice (user decision, 2026-11-16): `none`, `status` (booked, on the way, arrived, cancelled + time) or `details` (plus pickup, destination and plate number). Asked once on the first booking and stored with its time; changed or withdrawn by voice in any call, effective at once, also for a ride in progress. Not asked yet = nothing shared. No live vehicle location.
 - Rides leave now, no scheduled pickups: those need timed dispatch in the simulator. Ride tools are for ACTIVE elders only; family sees no rides on the dashboard, only the Telegram messages the elder allowed.
 - Hybrid search in PostgreSQL: no extra infra, tolerant to STT errors.
@@ -156,4 +158,4 @@ Closing:
 
 - Smoke runs with a second backend process: its scheduler works on every row of its database, so against the dev DB it handles the user's own pending work (a NOTI-02 smoke marked a real pending alert `skipped`; restored). Point such runs at a throwaway database, or turn the jobs off. `TELEGRAM_API_BASE_URL` points the bot at a local fake Bot API for end-to-end checks without a real bot.
 
-- Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` to print Vietnamese.
+- Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` (or `-X utf8`) to print Vietnamese. curl in Git Bash sends Vietnamese query strings in the wrong encoding (`--data-urlencode "q=chợ Hôm"` finds nothing): send them from Python or PowerShell, or percent-encode the UTF-8 by hand.

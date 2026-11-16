@@ -2,30 +2,46 @@
 
 import asyncio
 import math
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.config import Settings
+from app.config import Fault, Settings
 from app.dispatch import Driver, nearest_driver, pickup_duration_s, seed_drivers
 from app.errors import AppError
 from app.geo import SERVICE_AREA, Point
 from app.models import Booking, CancelReason, Quote, RideStatus, RideType
 from app.pricing import is_peak, price_vnd
 from app.routing import Router
-from app.state import ASSIGN_DELAY_S, CANCELLABLE, Timeline, plan_timeline, status_at
+from app.state import (
+    ASSIGN_DELAY_S,
+    CANCELLABLE,
+    Timeline,
+    driver_cancel_time,
+    plan_timeline,
+    status_at,
+)
 
 # Shorter than this isn't a ride (also catches the same place given twice).
 MIN_TRIP_DISTANCE_M = 200
 
 Clock = Callable[[], datetime]
+Sleep = Callable[[float], Awaitable[None]]
 
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class SimConfig:
+    """What can be changed while the simulator runs; back to the settings on restart."""
+
+    time_scale: float
+    fault: Fault | None
 
 
 @dataclass(frozen=True)
@@ -48,15 +64,32 @@ class Simulator:
         sessions: async_sessionmaker[AsyncSession],
         router: Router,
         clock: Clock = utc_now,
+        sleep: Sleep = asyncio.sleep,
     ) -> None:
         self._settings = settings
         self._sessions = sessions
         self._router = router
         self._clock = clock
+        self._sleep = sleep
+        self._config = SimConfig(time_scale=settings.time_scale, fault=settings.fault)
         self._drivers = seed_drivers(settings.seed, settings.driver_count)
         self._drivers_by_id = {driver.id: driver for driver in self._drivers}
         # One booking at a time, so two requests can't be given the same free driver.
         self._booking_lock = asyncio.Lock()
+
+    @property
+    def config(self) -> SimConfig:
+        return self._config
+
+    def configure(self, config: SimConfig) -> None:
+        """A new time scale only applies to rides booked from now on."""
+        self._config = config
+
+    async def fail_if_timing_out(self) -> None:
+        """The `timeout` fault: hang, then fail without having done anything."""
+        if self._config.fault is Fault.TIMEOUT:
+            await self._sleep(self._settings.fault_timeout_seconds)
+            raise AppError(504, "provider_timeout", "The ride provider did not answer in time")
 
     async def create_quote(self, ride_type: RideType, pickup: Point, destination: Point) -> Quote:
         if not (SERVICE_AREA.contains(pickup) and SERVICE_AREA.contains(destination)):
@@ -67,6 +100,7 @@ class Simulator:
 
         now = self._clock()
         peak = is_peak(now)
+        surge = self._config.fault is Fault.PRICE_SURGE
         async with self._sessions() as db:
             driver = await self._free_driver(db, ride_type, pickup, now)
             quote = Quote(
@@ -77,8 +111,15 @@ class Simulator:
                 destination_lng=destination.lng,
                 distance_m=route.distance_m,
                 duration_s=route.duration_s,
-                price_vnd=price_vnd(ride_type, route.distance_m, route.duration_s, peak=peak),
+                price_vnd=price_vnd(
+                    ride_type,
+                    route.distance_m,
+                    route.duration_s,
+                    peak=peak,
+                    surge=self._settings.surge_multiplier if surge else 1.0,
+                ),
                 peak=peak,
+                surge=surge,
                 estimated=route.estimated,
                 pickup_eta_s=(
                     None if driver is None else ASSIGN_DELAY_S + pickup_duration_s(driver, pickup)
@@ -104,26 +145,36 @@ class Simulator:
             now = self._clock()
             if now >= quote.expires_at:
                 raise AppError(409, "quote_expired", "Quote has expired; ask for a new one")
-            driver = await self._free_driver(db, quote.ride_type, quote.pickup, now)
+            fault = self._config.fault
+            driver = (
+                None
+                if fault is Fault.NO_DRIVER
+                else await self._free_driver(db, quote.ride_type, quote.pickup, now)
+            )
             if driver is None:
                 raise AppError(409, "no_driver_available", "No driver is available nearby")
 
+            time_scale = self._config.time_scale
             timeline = plan_timeline(
                 now,
                 pickup_duration_s=pickup_duration_s(driver, quote.pickup),
                 trip_duration_s=quote.duration_s,
-                time_scale=self._settings.time_scale,
+                time_scale=time_scale,
             )
             booking = Booking(
                 quote=quote,
                 driver_id=driver.id,
-                time_scale=self._settings.time_scale,
+                time_scale=time_scale,
                 requested_at=timeline.requested_at,
                 assigned_at=timeline.assigned_at,
                 arriving_at=timeline.arriving_at,
                 pickup_at=timeline.pickup_at,
                 dropoff_at=timeline.dropoff_at,
             )
+            if fault is Fault.DRIVER_CANCELS:
+                # Decided now, seen later: the booking turns CANCELLED when the clock gets there.
+                booking.cancelled_at = driver_cancel_time(timeline, time_scale)
+                booking.cancel_reason = CancelReason.DRIVER
             db.add(booking)
             await db.commit()
             return self._view(booking), True

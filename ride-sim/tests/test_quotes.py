@@ -29,6 +29,7 @@ def test_quote_prices_the_trip(client: TestClient) -> None:
     # 20,000 + 4.581 km x 11,000 + 12.5 min x 500 = 76,641
     assert quote["price_vnd"] == 77_000
     assert quote["peak"] is False
+    assert quote["surge"] is False
     # The nearest car4 of the test seed is 322 m away: 20 s to accept + 71 s to drive.
     assert quote["pickup_eta_s"] == 91
     assert datetime.fromisoformat(quote["expires_at"]) == START + timedelta(seconds=300)

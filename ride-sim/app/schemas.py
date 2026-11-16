@@ -3,9 +3,11 @@ from typing import Self
 
 from pydantic import BaseModel, Field
 
+from app.config import Fault
 from app.geo import Point
+from app.geocoding import Place
 from app.models import CancelReason, Quote, RideStatus, RideType
-from app.simulator import BookingView
+from app.simulator import BookingView, SimConfig
 
 
 class PointModel(BaseModel):
@@ -37,6 +39,8 @@ class QuoteOut(BaseModel):
     price_vnd: int
     # Peak-hour price.
     peak: bool
+    # Priced higher than usual (`price_surge` fault).
+    surge: bool
     # Distance and duration are a straight-line estimate, not a road route.
     estimated: bool
     # Seconds until a driver would reach the pickup; null when no driver is near.
@@ -54,6 +58,7 @@ class QuoteOut(BaseModel):
             duration_s=quote.duration_s,
             price_vnd=quote.price_vnd,
             peak=quote.peak,
+            surge=quote.surge,
             estimated=quote.estimated,
             pickup_eta_s=quote.pickup_eta_s,
             expires_at=quote.expires_at,
@@ -115,3 +120,39 @@ class BookingOut(BaseModel):
             cancelled_at=booking.cancelled_at if cancelled else None,
             cancel_reason=booking.cancel_reason if cancelled else None,
         )
+
+
+class PlaceOut(BaseModel):
+    name: str
+    # Street address when known, else "".
+    address: str
+    lat: float
+    lng: float
+    # "builtin" (the simulator's own list) or "photon".
+    source: str
+
+    @classmethod
+    def from_place(cls, place: Place) -> Self:
+        return cls(
+            name=place.name,
+            address=place.address,
+            lat=place.location.lat,
+            lng=place.location.lng,
+            source=place.source,
+        )
+
+
+class SimConfigOut(BaseModel):
+    time_scale: float
+    fault: Fault | None
+
+    @classmethod
+    def from_config(cls, config: SimConfig) -> Self:
+        return cls(time_scale=config.time_scale, fault=config.fault)
+
+
+class SimConfigPatch(BaseModel):
+    """Only the fields sent are changed; `"fault": null` turns the fault off."""
+
+    time_scale: float | None = Field(default=None, gt=0)
+    fault: Fault | None = None

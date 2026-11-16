@@ -5,6 +5,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from app.geo import Point
+from app.geocoding import GeocodingError, Place
 
 LANG_HA = Point(21.0168, 105.8136)
 BACH_MAI = Point(21.0003, 105.8411)
@@ -45,3 +46,22 @@ def get_booking(client: TestClient, booking_id: str) -> dict[str, Any]:
 
 def error_code(response: Any) -> str:
     return response.json()["error"]["code"]
+
+
+def photon_place(name: str, location: Point, address: str = "") -> Place:
+    return Place(name=name, address=address, location=location, source="photon")
+
+
+class FakeGeocoder:
+    """Answers with the given places (or fails), recording each search."""
+
+    def __init__(self, places: list[Place] | None = None, *, fail: bool = False) -> None:
+        self.places = places or []
+        self.fail = fail
+        self.calls: list[tuple[str, int]] = []
+
+    async def search(self, query: str, limit: int) -> list[Place]:
+        self.calls.append((query, limit))
+        if self.fail:
+            raise GeocodingError("ConnectError")
+        return self.places[:limit]

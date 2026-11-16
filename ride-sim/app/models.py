@@ -28,6 +28,7 @@ class RideStatus(StrEnum):
 
 class CancelReason(StrEnum):
     RIDER = "rider"
+    DRIVER = "driver"  # only under the `driver_cancels` fault
 
 
 def _new_id() -> str:
@@ -57,6 +58,8 @@ class Quote(Base):
     price_vnd: Mapped[int]
     # Priced with the peak-hour multiplier.
     peak: Mapped[bool]
+    # Priced with the surge multiplier (`price_surge` fault).
+    surge: Mapped[bool]
     # Distance and duration don't come from a road network.
     estimated: Mapped[bool]
     # Simulated seconds until a driver would reach the pickup; None when no driver is near.
