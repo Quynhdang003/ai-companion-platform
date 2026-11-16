@@ -20,7 +20,7 @@ from app.services.ride.provider import (
     RideProviderUnavailableError,
     RideRequestRefusedError,
 )
-from app.services.ride.rides import apply, mark_lost
+from app.services.ride.rides import apply_and_queue, mark_lost
 from app.services.ride.simulator import get_ride_provider
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ async def sync_next(db: AsyncSession, provider: RideProvider, *, started: dateti
         if ride is None:
             mark_lost(booking, now)
         else:
-            apply(booking, ride, now)
+            await apply_and_queue(db, booking, ride, now)
     await db.commit()
     return True
 

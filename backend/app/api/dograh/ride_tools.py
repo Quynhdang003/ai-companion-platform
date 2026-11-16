@@ -28,8 +28,10 @@ from app.schemas.ride import (
     RideStatusOut,
     SearchLocationOut,
     SearchLocationRequest,
+    SetRideSharingOut,
+    SetRideSharingRequest,
 )
-from app.services.ride import booking, messages, places, rides
+from app.services.ride import booking, messages, places, rides, sharing
 from app.services.ride.booking import (
     BookStatus,
     ConfirmationRequiredError,
@@ -46,13 +48,13 @@ router = APIRouter(prefix="/tools", tags=["dograh"], dependencies=[Depends(requi
 Provider = Annotated[RideProvider, Depends(get_ride_provider)]
 
 
-async def _active_call(db: DbSession, token: str) -> CallSession:
-    """The call, if its caller is an ACTIVE elder: rides need consent and an identity."""
+async def _active_caller(db: DbSession, token: str) -> tuple[CallSession, Elder]:
+    """The call and its elder, if ACTIVE: rides need consent and an identity."""
     call = await resolve_call(db, token)
     elder = None if call.elder_id is None else await db.get(Elder, call.elder_id)
     if elder is None or elder.status is not ElderStatus.ACTIVE:
         raise AppError(403, "not_active", messages.NOT_ACTIVE)
-    return call
+    return call, elder
 
 
 def _minutes(seconds: int | None) -> int | None:
@@ -64,7 +66,7 @@ async def search_location(
     body: SearchLocationRequest, db: DbSession, provider: Provider
 ) -> SearchLocationOut:
     """Up to 3 places for the caller's words, numbered for get_ride_quote."""
-    call = await _active_call(db, body.session_token)
+    call, _ = await _active_caller(db, body.session_token)
     result = await places.search(db, provider, call, body.query)
     await db.commit()
     if result.status is SearchStatus.FOUND:
@@ -86,7 +88,7 @@ async def search_location(
 @router.post("/get-ride-quote", response_model=RideQuoteOut)
 async def get_ride_quote(body: RideQuoteRequest, db: DbSession, provider: Provider) -> RideQuoteOut:
     """Price and wait for a trip between two places of this call."""
-    call = await _active_call(db, body.session_token)
+    call, _ = await _active_caller(db, body.session_token)
     try:
         result = await booking.quote_ride(
             db,
@@ -132,7 +134,7 @@ async def get_ride_quote(body: RideQuoteRequest, db: DbSession, provider: Provid
 @router.post("/book-ride", response_model=BookRideOut)
 async def book_ride(body: BookRideRequest, db: DbSession, provider: Provider) -> BookRideOut:
     """Call only after the caller heard the price and clearly agreed to book."""
-    call = await _active_call(db, body.session_token)
+    call, elder = await _active_caller(db, body.session_token)
     settings = get_settings()
     try:
         result = await booking.book_ride(
@@ -148,8 +150,11 @@ async def book_ride(body: BookRideRequest, db: DbSession, provider: Provider) ->
     await db.commit()
 
     ride = result.booking
+    ask_sharing = result.new and elder.ride_share_scope is None
     if result.status is BookStatus.BOOKED and ride is not None:
         message = messages.booked(body.ride_type, ride.quote.pickup, result.pickup_eta_s)
+        if ask_sharing:
+            message += " " + messages.ASK_SHARING
     else:
         message = {
             BookStatus.NO_QUOTE: messages.NO_QUOTE,
@@ -162,6 +167,7 @@ async def book_ride(body: BookRideRequest, db: DbSession, provider: Provider) ->
         message=message,
         ride_type=body.ride_type,
         pickup_minutes=_minutes(result.pickup_eta_s),
+        ask_sharing=ask_sharing,
     )
 
 
@@ -170,7 +176,7 @@ async def get_ride_status(
     body: SessionToolRequest, db: DbSession, provider: Provider
 ) -> RideStatusOut:
     """Where the elder's current ride is: driver, car, how long until pickup or arrival."""
-    call = await _active_call(db, body.session_token)
+    call, _ = await _active_caller(db, body.session_token)
     view = await rides.ride_status(db, provider, call, now=datetime.now(UTC))
     await db.commit()
     ride = view.booking
@@ -192,7 +198,7 @@ async def get_ride_status(
 @router.post("/cancel-ride", response_model=CancelRideOut)
 async def cancel_ride(body: SessionToolRequest, db: DbSession, provider: Provider) -> CancelRideOut:
     """Call only after the caller clearly confirmed cancelling their current ride."""
-    call = await _active_call(db, body.session_token)
+    call, _ = await _active_caller(db, body.session_token)
     result = await rides.cancel_ride(db, provider, call, now=datetime.now(UTC))
     await db.commit()
     ride = result.booking
@@ -207,3 +213,12 @@ async def cancel_ride(body: SessionToolRequest, db: DbSession, provider: Provide
             CancelOutcome.UNAVAILABLE: messages.CANCEL_UNAVAILABLE,
         }[result.outcome]
     return CancelRideOut(status=result.outcome, message=message)
+
+
+@router.post("/set-ride-sharing", response_model=SetRideSharingOut)
+async def set_ride_sharing(body: SetRideSharingRequest, db: DbSession) -> SetRideSharingOut:
+    """Call only after the caller clearly said what family may hear about their rides."""
+    _, elder = await _active_caller(db, body.session_token)
+    await sharing.set_scope(db, elder, body.scope, datetime.now(UTC))
+    await db.commit()
+    return SetRideSharingOut(scope=body.scope, message=messages.SHARING_SET[body.scope])

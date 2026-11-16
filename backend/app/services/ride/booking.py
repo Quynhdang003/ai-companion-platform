@@ -16,10 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import (
     CallSession,
     RideBooking,
+    RideEvent,
     RidePlaceOption,
     RideQuote,
     RideType,
 )
+from app.services.ride import events
 from app.services.ride import provider as codes
 from app.services.ride.provider import (
     GeoPoint,
@@ -71,6 +73,8 @@ class BookResult:
     booking: RideBooking | None = None
     # Live, from the provider, when it just booked.
     pickup_eta_s: int | None = None
+    # Booked by this request (not a quote booked before).
+    new: bool = False
 
 
 _QUOTE_REFUSALS = {
@@ -191,7 +195,8 @@ async def book_ride(
     )
     db.add(booking)
     await db.flush()
-    return BookResult(BookStatus.BOOKED, booking, ride.pickup_eta_s)
+    await events.queue(db, booking, RideEvent.BOOKED, now)
+    return BookResult(BookStatus.BOOKED, booking, ride.pickup_eta_s, new=True)
 
 
 async def _option(db: AsyncSession, call: CallSession, ref: int) -> RidePlaceOption:

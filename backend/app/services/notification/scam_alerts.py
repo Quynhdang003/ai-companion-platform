@@ -18,13 +18,9 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import SessionFactory, SessionLocal
-from app.models import AlertStatus, Elder, ElderFamily, ElderStatus, ScamEvent, TelegramLink
-from app.services.notification import telegram_links
-from app.services.notification.channel import (
-    NotificationChannel,
-    NotificationError,
-    RecipientUnreachableError,
-)
+from app.models import AlertStatus, Elder, ElderStatus, ScamEvent
+from app.services.notification.channel import NotificationChannel
+from app.services.notification.family import send_to_family
 from app.services.notification.messages import scam_alert
 
 logger = logging.getLogger(__name__)
@@ -58,44 +54,22 @@ async def process_next(db: AsyncSession, channel: NotificationChannel) -> bool:
         return await _finish(db, event, AlertStatus.SKIPPED, "elder not active")
     if event.created_at < datetime.now(UTC) - MAX_AGE:
         return await _finish(db, event, AlertStatus.SKIPPED, "too old")
-    chats = await _family_chats(db, event)
-    if not chats:
-        return await _finish(db, event, AlertStatus.SKIPPED, "no family member on Telegram")
-
     text = scam_alert(elder.full_name, event.scam_type, event.risk_level, event.created_at)
-    sent = failed = 0
-    for chat_id in chats:
-        try:
-            await channel.send(str(chat_id), text)
-            sent += 1
-        except RecipientUnreachableError:
-            await telegram_links.unlink_chat(db, chat_id)
-        except NotificationError as exc:
-            failed += 1
-            logger.warning("scam alert %s: a send failed: %s", event.id, exc)
-
-    if sent:
+    delivery = await send_to_family(db, channel, elder.id, text, label=f"scam alert {event.id}")
+    if not delivery.chats:
+        return await _finish(db, event, AlertStatus.SKIPPED, "no family member on Telegram")
+    if delivery.sent:
         event.alerted_at = datetime.now(UTC)
-        return await _finish(db, event, AlertStatus.SENT, f"sent to {sent} of {len(chats)}")
-    if not failed:
+        return await _finish(
+            db, event, AlertStatus.SENT, f"sent to {delivery.sent} of {delivery.chats}"
+        )
+    if not delivery.failed:
         return await _finish(db, event, AlertStatus.SKIPPED, "every chat unreachable")
     event.alert_attempts += 1
     if event.alert_attempts >= MAX_ATTEMPTS:
         return await _finish(db, event, AlertStatus.FAILED, f"{event.alert_attempts} attempts")
     await db.commit()
     return True
-
-
-async def _family_chats(db: AsyncSession, event: ScamEvent) -> list[int]:
-    """Telegram chats of the elder's family members (owner and viewers), each once."""
-    rows = await db.scalars(
-        select(TelegramLink.chat_id)
-        .join(ElderFamily, ElderFamily.user_id == TelegramLink.user_id)
-        .where(ElderFamily.elder_id == event.elder_id, TelegramLink.chat_id.is_not(None))
-        .distinct()
-        .order_by(TelegramLink.chat_id)
-    )
-    return [chat_id for chat_id in rows if chat_id is not None]
 
 
 async def _finish(db: AsyncSession, event: ScamEvent, status: AlertStatus, why: str) -> bool:

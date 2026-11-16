@@ -54,6 +54,7 @@ Update after every meaningful implementation change.
 | `SIM-02` | Ride simulator maps (OSRM, Photon, built-in places, fallbacks) and four faults via `/sim/config` | 127 tests + 2 `live` (public OSRM and Photon) pass. Real process: OSRM quote Lang Ha → Bach Mai 4.1 km; built-in places < 0.1 s, Photon 4.3–4.7 s then 0 s cached; `no_driver` 409, `driver_cancels` cancelled 2 s after booking at `TIME_SCALE=30`, `timeout` 504 after 4 s, `price_surge` 72k → 130k; map servers unreachable → estimated quote, built-in places only |
 | `RIDE-01` | `RideProvider` + simulator adapter, ride tables (`2743a0704e49`), tools `search_location`, `get_ride_quote`, `book_ride`, `last_ride` in the pre-call hook | 609 tests (77 new). Real backend (throwaway DB) + real ride-sim: built-in place 0.2 s, Photon address 2.5 s, OSRM quote 1.0 s; booking at once 409 `confirmation_required`, after 3.5 s booked, again the same ride; next call `last_ride` set (hook 10 ms) and both places found again from the earlier ride in 0.0 s; `price_surge`, `no_driver`, `timeout` (unavailable after 7 s), same place `too_short`, unknown option 404; pending and unknown callers 403 |
 | `RIDE-02` | Tools `get_ride_status`, `cancel_ride`; ride sync job; cancel reason and sync time (`092895d242f7`) | 645 tests (36 new). Real backend (throwaway DB, sync every 3 s) + real ride-sim at x30: status read out from looking for a driver to arrived in 38 s; a ride nobody asked about stored `COMPLETED` by the job; `driver_cancels` → driver cancelled message 3 s after booking; cancel, cancel again, cancel on board refused; `timeout` → status and cancel unavailable in 7.1 s, also while the job hits the same timeout |
+| `RIDE-03` | Ride sharing choice (`set_ride_sharing`, asked after the first booking), family ride updates on Telegram within it (`049aa92d4462`) | 667 tests (22 new). Real backend (throwaway DB, jobs on) + real ride-sim at x30 + a local fake Bot API: first booking asks; nothing sent for 5 s without an answer, `status` → booked sent 4 s later, then on board and arrived, no places; `details` → places and car + plate; `none` while on board → arrived skipped |
 
 ## In progress
 
@@ -61,14 +62,14 @@ Update after every meaningful implementation change.
 
 ## Next
 
-In this order (about 22 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+In this order (about 18 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
 
 Rides (criterion 6), branch `feat/ride-booking`:
 
-- `RIDE-03` (backend): the elder's ride sharing choice (`none` / `status` / `details`), tool `set_ride_sharing`, Telegram ride messages within that scope, checked when each is sent. First to defer if time runs short: without it nothing is shared.
 - `RIDE-04` (Dograh): the six ride tools + prompt (verbal confirmation before `book_ride`, `cancel_ride` and sharing changes). Text chat, then voice → criterion 6.
   - Tool timeouts above the backend's 7 s provider wait (`search_location` can take ~6 s on public Photon for an address the simulator doesn't know), with a `delayed` filler, like `check_scam`.
   - Prompt: "same as last time" → search the names in `last_ride`; read every quote; call `book_ride` with the type the caller agreed to, only after a clear yes; on 409 `confirmation_required`, ask and wait.
+  - Sharing: when `ask_sharing`, the question is in `message`; a plain yes → `status`, `details` only when the elder asks for places or the car, no → `none`. "Đừng báo nữa" or a change in any call → `set_ride_sharing` after confirming.
 
 Call activity (criterion 7), branch `feat/act-01-call-activity`:
 
@@ -110,6 +111,7 @@ Closing:
 - Ride simulator map data from public servers, behind `Router` and `Geocoder` interfaces (user decision, 2026-11-16): the OSRM demo server and public Photon, no setup or API key. Fallbacks keep a demo independent of them: straight-line distance × a factor when OSRM fails, a built-in list of Hanoi places when Photon fails. Only addresses are sent out, never names or phone numbers. Self-hosting both at deploy is a URL change.
 - Place search answers well-known places from the simulator's built-in list (41 places from OpenStreetMap) without asking Photon, and asks Photon only for anything else, with a 6 s timeout and an in-memory cache: public Photon took 3–6 s from here on 2026-11-16 (even its `/status`), so it only serves addresses the list doesn't have. A more precise request ("phố Bạch Mai" instead of "Bạch Mai") reaches Photon.
 - Ride sharing with family is the elder's choice (user decision, 2026-11-16): `none`, `status` (booked, on the way, arrived, cancelled + time) or `details` (plus pickup, destination and plate number). Asked once on the first booking and stored with its time; changed or withdrawn by voice in any call, effective at once, also for a ride in progress. Not asked yet = nothing shared. No live vehicle location.
+- Ride updates for family are queued for every ride and read the elder's choice when sent: a change or a withdrawal applies at once without touching the queue. An update queued before the elder answered the sharing question waits for the answer (15 min at most), so the first ride's "booked" still goes out once they say yes. The driver accepting or arriving isn't sent: four messages per ride at most.
 - `book_ride` takes the ride type the caller agreed to (the plan said no LLM parameter): when several types were quoted and read out, "the latest quote" alone could book the wrong one. A ride type is no identifier, so invariant 1 holds.
 - Ride tools answer every outcome the caller should hear with a 200, a `status` and a speakable message, and keep HTTP errors for the agent's own mistakes (unknown option number, booking too soon): the agent reads `message` either way.
 - Rides leave now, no scheduled pickups: those need timed dispatch in the simulator. Ride tools are for ACTIVE elders only; family sees no rides on the dashboard, only the Telegram messages the elder allowed.

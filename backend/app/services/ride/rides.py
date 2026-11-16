@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import CallSession, CancelReason, RideBooking, RideStatus
+from app.services.ride import events
 from app.services.ride import provider as codes
 from app.services.ride.provider import (
     ProviderBooking,
@@ -72,6 +73,14 @@ def apply(booking: RideBooking, ride: ProviderBooking, now: datetime) -> bool:
     return moved
 
 
+async def apply_and_queue(
+    db: AsyncSession, booking: RideBooking, ride: ProviderBooking, now: datetime
+) -> None:
+    """`apply`, and queue the family update when the status moved."""
+    if apply(booking, ride, now):
+        await events.queue_status(db, booking, now)
+
+
 def mark_lost(booking: RideBooking, now: datetime) -> None:
     """The provider no longer knows the booking (e.g. the simulator's state was deleted)."""
     logger.warning("Ride booking %s is unknown to the provider: marked lost", booking.id)
@@ -116,7 +125,7 @@ async def ride_status(
     except RideProviderUnavailableError as exc:
         logger.warning("Ride status failed: %s", exc)
         return RideView(StatusOutcome.UNAVAILABLE, booking)
-    apply(booking, ride, now)
+    await apply_and_queue(db, booking, ride, now)
     await db.flush()
     return RideView(StatusOutcome.FOUND, booking, ride.pickup_eta_s, ride.dropoff_eta_s)
 
@@ -151,7 +160,7 @@ async def cancel_ride(
     except RideProviderUnavailableError as exc:
         logger.warning("Ride cancel failed: %s", exc)
         return CancelResult(CancelOutcome.UNAVAILABLE, booking)
-    apply(booking, ride, now)
+    await apply_and_queue(db, booking, ride, now)
     await db.flush()
     if ride.status is RideStatus.CANCELLED and booking.cancel_reason is CancelReason.RIDER:
         return CancelResult(CancelOutcome.CANCELLED, booking)

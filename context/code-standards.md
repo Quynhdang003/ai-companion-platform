@@ -23,6 +23,7 @@
   - On the real-time call path (Dograh tools), an LLM call runs against a deadline (`asyncio.wait_for`) and any `LLMError` or timeout falls back to a non-LLM answer: the tool never fails because of the LLM (`app/services/scam/engine.py`).
   - Prompts whose results are cached (`scripts.eval_scam`) carry a `PROMPT_VERSION`; bump it on any prompt change.
 - Notifications go through `NotificationChannel` (`app/services/notification/channel.py`: `send(recipient, text)`, plain text). Errors: `NotificationError` (retry later); `RecipientUnreachableError` (e.g. the chat blocked the bot: stop sending to it). Telegram is `TelegramBot` (`telegram.py`, Bot API over httpx); tests use `FakeTelegramBot` (`tests/fakes.py`).
+  - Alert jobs send to an elder's family with `send_to_family` (`app/services/notification/family.py`): every linked member's connected chat once, unreachable chats disconnected, a `Delivery` with the counts the job decides on.
   - Bot API URLs contain the bot token: never log or raise a URL or a chained httpx error (`raise ... from None`); httpx's INFO request log is silenced.
   - Messages to family carry metadata and scam type/level only; logs never carry chat ids.
 - Rides go through `RideProvider` (`app/services/ride/provider.py`: `search_places`, `quote`, `book`; `SimRideProvider` in `simulator.py`, `get_ride_provider()`). Routes get it with `Depends(get_ride_provider)`; the test `client` fixture overrides it with `FakeRideProvider` (`tests/fakes.py`), and the `rides` fixture hands a test its own to set places and errors.

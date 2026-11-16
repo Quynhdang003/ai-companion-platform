@@ -31,6 +31,7 @@ TOOLS = [
     ("book-ride", {"ride_type": "car4"}),
     ("get-ride-status", {}),
     ("cancel-ride", {}),
+    ("set-ride-sharing", {"scope": "status"}),
 ]
 
 
@@ -367,12 +368,14 @@ async def test_booking_needs_the_price_read_out_first(
     booked = await ride_tool(client, "book-ride", token, ride_type="car4")
 
     assert booked.status_code == 200
+    # The first booking ever: the elder is asked what family may hear (RIDE-03).
     assert booked.json() == {
         "status": "booked",
         "message": "Dạ, con đã đặt xe bốn chỗ cho bác rồi ạ."
-        " Xe sẽ đến đón ở Ngõ 12 Phố Láng Hạ sau khoảng 5 phút.",
+        " Xe sẽ đến đón ở Ngõ 12 Phố Láng Hạ sau khoảng 5 phút. " + messages.ASK_SHARING,
         "ride_type": "car4",
         "pickup_minutes": 5,
+        "ask_sharing": True,
     }
     ride = await session.scalar(select(RideBooking))
     call = await session.scalar(select(CallSession))
@@ -425,6 +428,7 @@ async def test_the_latest_quote_of_the_agreed_ride_type_is_booked(
         "message": messages.NO_QUOTE,
         "ride_type": "car7",
         "pickup_minutes": None,
+        "ask_sharing": False,
     }
 
 

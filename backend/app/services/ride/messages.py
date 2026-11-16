@@ -3,7 +3,14 @@
 import math
 from collections.abc import Sequence
 
-from app.models import CancelReason, RideBooking, RidePlaceOption, RideStatus, RideType
+from app.models import (
+    CancelReason,
+    RideBooking,
+    RidePlaceOption,
+    RideShareScope,
+    RideStatus,
+    RideType,
+)
 
 RIDE_TYPE_LABELS = {
     RideType.BIKE: "xe máy",
@@ -177,3 +184,17 @@ def already_cancelled(ride: RideBooking) -> str:
 
 def cancel_completed(ride: RideBooking) -> str:
     return f"Dạ, chuyến xe đi {ride.quote.destination.name} đã hoàn thành nên không hủy được nữa ạ."
+
+
+# After the first booking: the agent suggests `status`; `details` only if the elder asks.
+ASK_SHARING = "Bác có muốn con báo cho người thân biết khi bác lên xe và khi đến nơi không ạ?"
+SHARING_SET = {
+    RideShareScope.NONE: "Dạ, con sẽ không báo chuyến xe của bác cho người thân ạ.",
+    RideShareScope.STATUS: (
+        "Dạ, từ giờ mỗi khi bác đi xe, con sẽ báo người thân lúc bác đặt xe, lên xe, đến nơi"
+        " hoặc hủy chuyến, không kèm địa chỉ ạ."
+    ),
+    RideShareScope.DETAILS: (
+        "Dạ, từ giờ mỗi khi bác đi xe, con sẽ báo người thân cả điểm đón, điểm đến và biển số xe ạ."
+    ),
+}

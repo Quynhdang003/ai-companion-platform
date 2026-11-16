@@ -19,6 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+from app.models.scam import AlertStatus
 
 
 class RideType(StrEnum):
@@ -45,6 +46,23 @@ class CancelReason(StrEnum):
     RIDER = "rider"  # the elder, through the agent
     DRIVER = "driver"
     LOST = "lost"  # the provider no longer knows the booking (e.g. the simulator was reset)
+
+
+class RideShareScope(StrEnum):
+    """What the elder lets their family hear about their rides (asked on the first booking)."""
+
+    NONE = "none"
+    STATUS = "status"  # booked, on board, arrived, cancelled, with the time
+    DETAILS = "details"  # plus pickup, destination and the car
+
+
+class RideEvent(StrEnum):
+    """A moment of a ride the family may hear about."""
+
+    BOOKED = "booked"
+    ON_THE_WAY = "on_the_way"  # the elder is on board
+    ARRIVED = "arrived"
+    CANCELLED = "cancelled"
 
 
 class PlaceSource(StrEnum):
@@ -168,3 +186,30 @@ class RideBooking(TimestampMixin, Base):
     @property
     def finished(self) -> bool:
         return self.status in FINISHED
+
+
+class RideNotification(TimestampMixin, Base):
+    """A ride update for the elder's family on Telegram, one per ride and event.
+
+    Queued whatever the elder chose; the alert job checks the elder's `ride_share_scope`
+    when it sends (`app/services/notification/ride_alerts.py`), so a change applies at once.
+    """
+
+    __tablename__ = "ride_notifications"
+    __table_args__ = (
+        UniqueConstraint("booking_id", "event", name="uq_ride_notifications_booking_id_event"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    booking_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("ride_bookings.id", ondelete="CASCADE")
+    )
+    event: Mapped[RideEvent] = mapped_column(_str_enum(RideEvent, "event"))
+    status: Mapped[AlertStatus] = mapped_column(
+        _str_enum(AlertStatus, "status"), server_default=AlertStatus.PENDING.value
+    )
+    # Sends that all failed so far; `failed` once it reaches the job's maximum.
+    attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -96,6 +96,7 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
   - `booked`: stored (`ride_bookings`); `message` says it's booked and, when the provider just booked it, where and in how long the car comes (`pickup_minutes`). Booking the same quote again returns the same ride without asking the provider.
   - `no_quote` (nothing of that type quoted in this call), `quote_expired` (5 min, or the provider lost it: quote again), `no_driver`, `unavailable`.
   - After `unavailable` asking again is safe: the provider books a quote at most once and answers with that booking.
+  - `ask_sharing: true` when a new booking is the elder's first since they never chose what family hears about rides: `message` ends with "Bác có muốn con báo cho người thân biết khi bác lên xe và khi đến nơi không ạ?" (answer → `set_ride_sharing`).
 
 - `POST /tools/get-ride-status` `{session_token}` → 200 `{status, message, ride_status, pickup_minutes, dropoff_minutes}`.
   - The elder's current ride: their latest, whichever call booked it; one finished (`COMPLETED`/`CANCELLED`) over 6 h ago is no longer current.
@@ -107,6 +108,16 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
   - `status`: `cancelled`; `already_cancelled` (by the elder before; by the driver or lost: `message` says so); `in_progress` (on board: too late); `completed`; `no_ride`; `unavailable` (nothing changed).
 
 - Ride sync job (`app/services/ride/sync.py`, every `RIDE_SYNC_INTERVAL_SECONDS`, 10): reads every open ride from the provider once per run and stores its status, driver and cancel reason; a ride the provider no longer knows becomes `CANCELLED`, reason `lost`. No answer stops the run until the next.
+
+- `POST /tools/set-ride-sharing` `{session_token, scope}` → 200 `{scope, message}`. Call only after the caller said what family may hear.
+  - `scope`: `none`; `status` (booked, on board, arrived, cancelled, with the time and ride type); `details` (plus pickup, destination and the car once known). Stored on the elder with the time; replaces any earlier choice, in any call.
+  - `message` confirms the choice in speakable Vietnamese. Errors: 401, 403 `not_active`, 422.
+
+- Ride updates to family (`app/services/notification/ride_alerts.py`, every `ALERT_JOB_INTERVAL_SECONDS`, with a Telegram bot token):
+  - Queued for every ride whatever the choice (`ride_notifications`, one per ride and event): booked; on board (`IN_PROGRESS`); arrived (`COMPLETED`); cancelled (by the elder or the driver). The driver's moves and lost rides aren't sent.
+  - The choice is read when sending, so a change applies at once, also mid-ride. Not chosen yet → the update waits up to 15 min for the answer, then `skipped`; `none` → `skipped`.
+  - Sent like scam alerts: to every linked family member's Telegram chat, each at most once; all sends failing → retried 30 s apart, `failed` after 5; nobody connected, elder not ACTIVE, or older than 15 min → `skipped`.
+  - Text: event, the elder's full name, ride type, time (Vietnam), who cancelled; `details` adds pickup, destination and car + plate, `status` ends with a note that only the status is shared. Never anything said in the call.
 
 - `POST /hooks/call-ended` `{workflow_run_id, duration_seconds?, disposition?, transcript_url?, recording_url?}` → 200 `{received: true}`. Dograh's end-of-call Webhook node; values are strings, `""` = not sent, `duration_seconds` is rounded to whole seconds.
   - Upserts one `call_logs` row for the run's `call_session` (Dograh retries deliveries).

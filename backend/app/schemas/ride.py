@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models import RideStatus, RideType
+from app.models import RideShareScope, RideStatus, RideType
 from app.schemas.dograh import SessionToolRequest
 from app.services.ride.booking import BookStatus, QuoteStatus
 from app.services.ride.places import SearchStatus
@@ -64,6 +64,8 @@ class BookRideOut(BaseModel):
     ride_type: RideType
     # Set when the provider just booked it.
     pickup_minutes: int | None = None
+    # The elder never chose what family hears about rides: `message` ends with the question.
+    ask_sharing: bool = False
 
 
 class RideStatusOut(BaseModel):
@@ -78,4 +80,15 @@ class RideStatusOut(BaseModel):
 
 class CancelRideOut(BaseModel):
     status: CancelOutcome
+    message: str
+
+
+class SetRideSharingRequest(SessionToolRequest):
+    # What the elder agreed to: none, status (booked, on board, arrived, cancelled) or
+    # details (plus places and the car).
+    scope: RideShareScope
+
+
+class SetRideSharingOut(BaseModel):
+    scope: RideShareScope
     message: str
