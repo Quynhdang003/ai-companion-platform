@@ -4,7 +4,7 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
 
 | Path | What |
 |---|---|
-| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b; v20 published: same nodes, prompts and edges as this export, Context Variable `caller_number` set to a test number): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
+| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b; v21 published: same nodes, prompts and edges as this export, Context Variable `caller_number` set to the ACTIVE test number; v21 only changed that variable from v20): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
 | `tools/confirm_activation.json` | HTTP tool body for `POST /api/v1/tools/`. |
 | `tools/search_knowledge.json` | HTTP tool body for `POST /api/v1/tools/` (RAG-02b). |
 | `tools/check_scam.json` | HTTP tool body for `POST /api/v1/tools/` (SCAM-04b). Validated with Dograh 1.50.0's `CreateToolRequest`. |

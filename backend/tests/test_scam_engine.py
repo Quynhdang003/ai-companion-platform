@@ -72,6 +72,42 @@ async def test_the_classifier_decides_otherwise(
     assert {Signal.RELATIVE, Signal.MONEY_TRANSFER, Signal.URGENCY} <= result.signals
 
 
+@pytest.mark.parametrize(
+    ("signals", "level"),
+    [
+        (["investment", "easy_profit"], RiskLevel.MEDIUM),
+        ([], RiskLevel.MEDIUM),
+        # The classifier names a request the rules found no phrase for.
+        (["investment", "easy_profit", "money_transfer"], RiskLevel.HIGH),
+    ],
+    ids=["story only", "no signals", "classifier names a request"],
+)
+async def test_high_with_nothing_asked_is_capped_at_medium(
+    session: AsyncSession, llm: FakeLLMClient, signals: list[str], level: RiskLevel
+) -> None:
+    llm.replies.append({"risk_level": "high", "scam_type": "investment", "signals": signals})
+
+    result = await assess(
+        session, llm, "Có người rủ bác mua tiền ảo, nói chắc chắn lãi to.", timeout=4
+    )
+
+    assert (result.level, result.scam_type) == (level, ScamType.INVESTMENT)
+    assert result.assessed_by is AssessedBy.LLM
+
+
+async def test_a_request_found_by_the_rules_keeps_high(
+    session: AsyncSession, llm: FakeLLMClient
+) -> None:
+    # The classifier lists no request, but layer 1 found the money transfer.
+    llm.replies.append(
+        {"risk_level": "high", "scam_type": "relative_impersonation", "signals": ["relative"]}
+    )
+
+    result = await assess(session, llm, RELATIVE_ASKS, timeout=4)
+
+    assert result.level is RiskLevel.HIGH
+
+
 async def test_the_prompt_holds_situation_patterns_and_hints(
     session: AsyncSession, llm: FakeLLMClient, patterns: None
 ) -> None:

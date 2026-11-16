@@ -4,6 +4,8 @@
    no LLM.
 2. Otherwise the known patterns closest to the situation are retrieved (`search.py`) and
    the classifier (`classifier.py`) decides, with the layer-1 signals as hints.
+   A high verdict with nothing asked for (`ASK_SIGNALS`, from either layer) is capped at
+   medium: high alerts the family, and by definition needs a request (`RiskLevel`).
 3. If the classifier fails (error, rate limit, no key, invalid output) or the budget runs
    out, the layer-1 result stands. The engine never raises an LLM error: a caller in the
    middle of a scam always gets an answer.
@@ -32,6 +34,17 @@ PATTERN_LIMIT = 3
 EMBED_TIMEOUT_SECONDS = 1.5
 # Less budget than this left for the classifier: don't start it.
 MIN_CLASSIFIER_SECONDS = 0.5
+# What the elder is asked for or told to do. Without one of these a scam story is medium.
+ASK_SIGNALS = frozenset(
+    {
+        Signal.MONEY_TRANSFER,
+        Signal.CREDENTIALS,
+        Signal.PERSONAL_INFO,
+        Signal.LINK_OR_APP,
+        Signal.SAFE_ACCOUNT,
+        Signal.PERSONAL_ACCOUNT,
+    }
+)
 
 
 class FallbackReason(StrEnum):
@@ -101,12 +114,16 @@ async def assess(
         logger.warning("scam classifier failed: %s", exc)
         return _log(started, _fallback(rules, FallbackReason.ERROR, titles))
 
+    signals = rules.signals | frozenset(verdict.signals)
+    level = verdict.risk_level
+    if level is RiskLevel.HIGH and not signals & ASK_SIGNALS:
+        level = RiskLevel.MEDIUM
     return _log(
         started,
         ScamAssessment(
-            level=verdict.risk_level,
+            level=level,
             scam_type=verdict.scam_type,
-            signals=rules.signals | frozenset(verdict.signals),
+            signals=signals,
             assessed_by=AssessedBy.LLM,
             pattern_titles=titles,
             reason=verdict.reason or None,
