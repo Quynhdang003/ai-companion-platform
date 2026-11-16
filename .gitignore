@@ -11,6 +11,9 @@ __pycache__/
 .ruff_cache/
 # Local caches (e.g. scripts.eval_scam verdicts)
 .cache/
+# Ride simulator state (SQLite)
+ride-sim/*.db
+ride-sim/*.db-*
 
 # Node / Next.js
 node_modules/

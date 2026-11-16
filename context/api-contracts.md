@@ -85,6 +85,27 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
     - 422 `invalid_transcript_url` (outside `DOGRAH_BASE_URL`).
     - 503 `transcript_unavailable` (download failed or not a Dograh transcript): nothing stored, Dograh retries.
 
+## Ride Simulator API (`ride-sim`, port 8001)
+
+Called only by the backend's `RideProvider` adapter. No auth: an internal service. Same error body as the backend (422 `validation_error` for an invalid body). Coordinates are `{lat, lng}`; prices are VND in whole thousands; durations and ETAs are simulated seconds, and `TIME_SCALE` simulated seconds pass per real second.
+
+| Route | Success | Errors |
+|---|---|---|
+| `POST /quotes` `{pickup, destination, ride_type}` | 201 quote | 422 `out_of_service_area`, 422 `trip_too_short` |
+| `POST /bookings` `{quote_id}` | 201 booking; 200 with the existing booking when the quote was booked before (safe to retry) | 404 `quote_not_found`, 409 `quote_expired`, 409 `no_driver_available` |
+| `GET /bookings/{id}` | 200 booking | 404 `booking_not_found` |
+| `POST /bookings/{id}/cancel` | 200 booking, now `CANCELLED` with `cancel_reason: "rider"`; repeating it changes nothing | 404 `booking_not_found`, 409 `ride_in_progress`, 409 `ride_completed` |
+
+- `ride_type`: `bike` | `car4` | `car7`. Price = base + per km + per minute (`ride-sim/app/pricing.py`), × 1.3 at peak hours (07:00–09:00 and 17:00–19:30, Vietnam time).
+- Quote: `{id, ride_type, pickup, destination, distance_m, duration_s, price_vnd, peak, estimated, pickup_eta_s, expires_at}`.
+  - `estimated: true`: distance and duration are a straight-line estimate (× 1.35, at 22 km/h), not a road route. The only router until `SIM-02`.
+  - `pickup_eta_s`: until the nearest free driver would reach the pickup; `null` when none is within 10 km.
+  - Bookable for `QUOTE_TTL_SECONDS` (300, real seconds). A trip starts and ends in greater Hanoi and is at least 200 m long.
+- Booking: `{id, quote_id, status, ride_type, pickup, destination, distance_m, duration_s, price_vnd, driver, pickup_eta_s, dropoff_eta_s, requested_at, cancelled_at, cancel_reason}`.
+  - `status`: `REQUESTED` → `DRIVER_ASSIGNED` → `ARRIVING` → `IN_PROGRESS` → `COMPLETED`; `CANCELLED` is possible until `IN_PROGRESS`. It isn't stored: it is read off times fixed when the quote is booked (a driver accepts after 20 s; `ARRIVING` starts 120 s before the pickup).
+  - `driver` `{name, vehicle, plate}`: `null` until a driver has accepted. `pickup_eta_s` is `null` once the passenger is on board; `dropoff_eta_s` once the ride is completed or cancelled.
+  - The nearest free driver of the ride type takes the booking and is busy until its drop-off or cancellation. Drivers come from `SEED` (same seed, same drivers) and wait in inner Hanoi, so a pickup at Noi Bai airport finds none.
+
 ## Dograh platform contract
 
 Checked against docs.dograh.com on 2026-10-29. Verified against the Dograh `1.50.0` source and live text-chat runs on 2026-11-03 (DG-01b); where the docs differ, the verified behavior is written here.

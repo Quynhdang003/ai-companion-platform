@@ -50,6 +50,7 @@ Update after every meaningful implementation change.
 | `SCAM-03b` | Live eval of the full engine on all 53 cases (`gemini-3.5-flash-lite`, finished 2026-11-16) | 35/35 high → high with the right type, all 7 types + `other` (rules 22, classifier 13); medium 5/5 after `SCAM-03c` (4/5 before: `suspicious-03` flagged high); low and none 13/13 not warned (low: 2 low, 3 none; none: 8/8); classifier p50 2.1 s, p90 2.9 s, max 3.8 s, 0/31 over the 6 s budget; one transient 503 (`benign-04`) fell back to rules, re-ran fine |
 | `SCAM-03c` | Engine caps a classifier `high` at `medium` when no signal from either layer is a request (`ASK_SIGNALS` in `engine.py`) | 532 tests (cap fires on a fake `high` verdict; a request named by either layer keeps `high`); rules find a request in all 13 classifier-decided high cases, so none can be capped; `suspicious-03` re-run live → medium (this time the classifier itself said medium: it is not stable on this case, the cap is); eval on 53 cases: nothing flagged high or warned beyond its label |
 | `NOTI-02b` | Live check with the real Telegram bot: dashboard connect, then a scam case in text chat → alert on the family's Telegram. **Criterion 5 done** (with `SCAM-03b`: 35/35 high flagged across all 7 types + `other`) | 2026-11-16. Bot token valid, no webhook; connect from the dashboard by the owner of the ACTIVE elder. Text chat, workflow v21 (`caller_number` = the ACTIVE test number): money-sent-by-mistake story with a link → `check_scam` high / other by classifier, warning said, event alert `sent` 5.6 s after the check (Bot API accepted the message). Same session's v20 run as the unknown number: OTP → high / bank by rule, warned, nothing stored, no alert |
+| `SIM-01` | Ride simulator core: quotes, bookings, seeded drivers, timestamp state machine, SQLite store | 66 tests (fake clock, fixed seed); real process at `TIME_SCALE=30`: quote → book → `COMPLETED` after 35 s, re-booking the quote 200, booking kept across a restart |
 
 ## In progress
 
@@ -57,16 +58,11 @@ Update after every meaningful implementation change.
 
 ## Next
 
-In this order, one unit at a time (about 41 h in all). Each unit gets its own detailed plan when it starts.
+In this order, one unit at a time (about 36 h left). Each unit gets its own detailed plan when it starts.
 
 Rides (criterion 6), branch `feat/ride-booking`:
 
-- `SIM-01` (ride-sim): simulator core.
-  - `POST /quotes`, `POST /bookings` (one booking per quote, safe to retry), `GET /bookings/{id}`, `POST /bookings/{id}/cancel`.
-  - Pricing per ride type (`bike`, `car4`, `car7`) with a peak multiplier; quotes expire.
-  - Drivers seeded around Hanoi from a fixed `seed`; states computed from timestamps, sped up by `time_scale`.
-  - SQLite store; `Router` and `Geocoder` interfaces, fakes only in this unit.
-- `SIM-02` (ride-sim): OSRM router and Photon geocoder with their fallbacks, `GET /places/search`, fault injection (`no_driver`, `driver_cancels`, `timeout`, `price_surge`) set at run time via `/sim/config`.
+- `SIM-02` (ride-sim): OSRM router (falling back to the straight-line `StraightLineRouter` from `SIM-01`), the `Geocoder` interface with Photon and its built-in place list fallback, `GET /places/search`, fault injection (`no_driver`, `driver_cancels`, `timeout`, `price_surge`) set at run time via `/sim/config`.
 - `RIDE-01` (backend): `RideProvider` + simulator adapter; tables for per-call place options, quotes and bookings; tools `search_location`, `get_ride_quote`, `book_ride`, for ACTIVE elders only.
   - The LLM passes only numbered place options from `search_location`, never coordinates, prices or identifiers.
   - `book_ride` takes no LLM parameter: it books the call's latest live quote, and refuses a quote younger than `RIDE_CONFIRM_MIN_SECONDS` (3 s), so a quote and a booking in the same turn can't happen.

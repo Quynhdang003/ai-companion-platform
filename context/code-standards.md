@@ -13,7 +13,7 @@
 - Pydantic models for all request/response bodies and LLM outputs.
 - Routes stay thin: validate → call service → return. Logic lives in `services/`.
 - External services (Gemini, ride provider, notification channels) behind interfaces (`RideProvider`, `NotificationChannel`, LLM client) for mocking in tests.
-- Async DB access with SQLAlchemy 2; schema changes only via Alembic migrations.
+- Async DB access with SQLAlchemy 2; schema changes only via Alembic migrations (backend; `ride-sim` differs, see below).
 - `pytest` tests for every service; mock external APIs. Tests that call a real external API are marked `live` and skipped by default (`uv run pytest -m live` runs them).
 - LLM calls go through `LLMClient` (`app/llm/client.py`, `get_llm_client()`); services take it as a parameter, tests pass `FakeLLMClient` (`tests/fakes.py`). Routes get it with `Depends(get_llm_client)`; the test `client` fixture overrides it with `FakeLLMClient` (override again in a test for a specific fake).
   - Structured output: `generate_json(prompt, Schema)` returns the validated Pydantic model.
@@ -33,6 +33,12 @@
   - A job whose failures are worth retrying soon (sends) waits a delay between attempts instead of retrying in the same run (`scam_alerts.py`: `RETRY_DELAY` from `updated_at`).
   - Jobs open sessions with a `SessionFactory` (`app/core/db.py`, default `SessionLocal`); tests pass `same_session(session)` (`tests/conftest.py`).
   - Tests call the per-row function directly with `FakeLLMClient`; the test client never starts the scheduler.
+- Ride simulator (`ride-sim/app/`):
+  - State lives in SQLite (SQLAlchemy 2 async + aiosqlite). Tables are created at startup, no Alembic: the state is disposable, so a schema change means deleting the database file.
+  - Datetime columns use `UtcDateTime` (`app/db.py`): SQLite keeps no time zone.
+  - Nothing reads the system clock directly. `create_app(settings, router=, clock=)` (`app/main.py`) takes the clock and the router; tests pass a `FakeClock`, a temp database and a fixed seed (`tests/conftest.py`: `make_client`).
+  - A booking's status is never stored or updated: `app/state.py` computes it from the booking's timestamps. Anything that changes a ride later (a cancellation, a fault) is a timestamp too.
+  - Errors are raised as `AppError(status, code, message)` with an English message; the backend turns codes into speakable Vietnamese.
 
 ## TypeScript
 

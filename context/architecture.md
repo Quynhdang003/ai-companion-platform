@@ -35,7 +35,7 @@
 - **Dograh**: recordings and raw transcripts (backend stores URLs + processed transcript), in Dograh's own Postgres + MinIO; never shared with the app database.
 - Conversation content (transcripts, memories) is read only by backend jobs and the AI (pre-call hook, tools); no web route returns it.
 - **Clerk**: credentials and sessions only; business data stays in PostgreSQL.
-- **Ride Simulator DB/state**: drivers, trips (separate from backend DB).
+- **Ride Simulator**: its own SQLite file (quotes, bookings), separate from the backend DB. A booking's status isn't stored: it is computed from timestamps fixed at booking. Drivers aren't stored either: they are generated from a seed at start.
 
 ## Auth and access model
 
