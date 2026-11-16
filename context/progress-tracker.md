@@ -8,7 +8,7 @@ Update after every meaningful implementation change.
 
 ## Current goal
 
-- Week 3: not planned yet. The scam engine reuses the hybrid search (`app/services/rag/search.py`).
+- Week 3: scam detection during calls (criterion 5). The agent calls `check_scam` when the caller tells it about a suspicious call or request. A two-layer engine (rules, then Gemini with retrieved scam patterns) returns a spoken warning; on high risk the elder's family gets a Telegram alert (type, level, time only). Reuses the hybrid search helpers (`app/services/rag/search.py`) and the background job pattern (`app/services/memory/job.py`).
 
 ## Completed
 
@@ -34,6 +34,17 @@ Update after every meaningful implementation change.
 | `RAG-01` | KB documents/chunks (`29dd51ed62b1`), hybrid search (full-text + trigram + vector, RRF), 3 sample docs + seed | 203 tests; real embeddings: 6/6 related questions → right doc, 2/2 unrelated → nothing |
 | `RAG-02a` | Tool `POST /tools/search-knowledge`: top 3 KB chunks for any live call | 215 tests; dev backend, real embeddings: emergency/OTP/cost questions → right doc, gold price → nothing; 0.4–0.75 s |
 | `RAG-02b` | Dograh `search_knowledge` tool + prompt for every caller (workflow v16) | Text chat, ACTIVE + unknown: 115, OTP, cost/features from KB; gold price not invented; tool 0.5–0.8 s. Voice check skipped (user decision) |
+| `SCAM-01` | Scam types, `scam_patterns` (`4b3ed2a15c4a`) + 27 seed patterns, hybrid search (word pairs + vector, RRF) | 247 tests; real embeddings: 16/16 situations → right type first, 4/5 one-liners, 3/3 unrelated → nothing |
+| `SCAM-02` | Labelled test set (53 cases) + layer-1 rules: 21 signals, 8 decisive rules, type from weighted cues | 381 tests; on the set: 22/35 high decisive, 0 decisive on non-high, every high ≥ medium, every none ≤ low (optimistic: rules and set written together) |
+| `SCAM-03` | Layer 2 (Gemini on its own model) + engine: decisive rule skips it, failures fall back to rules; `scripts.eval_scam` | 404 tests; live on 34/53 cases (`gemini-3.5-flash-lite`, free-tier quota): 31/34 high → high (rules alone 22/35), 34/34 warned with the right type; 3 transient errors fell back to rules; classifier p50 2.1 s, p90 3.8 s (in-call budget: see decisions) |
+| `SCAM-04a` | `scam_events` (`391d115c2959`) + tool `POST /tools/check-scam`: templated warning for every caller, events for ACTIVE medium/high | 477 tests; dev backend + real Gemini: OTP → high by rule (0.02 s, alert `pending`), relative asking money → high by classifier (2.0 s), harmless → none (1.7 s, not stored), unknown caller warned, nothing stored |
+| `NOTI-01a` | `NotificationChannel` + Telegram bot; `telegram_links` (`80d72daa5d7d`), one-time `/start` connect via `getUpdates` polling, connect/status/disconnect routes | 514 tests; Bot API mocked (httpx `MockTransport`, `FakeTelegramBot`); no real bot yet (user decision), see `NOTI-02b` |
+| `NOTI-01b` | Dashboard Telegram card: connect by one-time link (waits for Start), status, disconnect | Lint + build; headless Chrome + Clerk dev vs a local fake Bot API: connected 2.9 s after `/start`, reused link rejected, disconnect, cancel; 1440/390 no overflow, no console errors |
+| `NOTI-02` | Alert job: pending high scam events → Telegram to the elder's connected family (`240a783c442a`); retries, `failed`, `skipped` | 528 tests; real backend + dev DB vs a local fake Bot API: connect via `/start` 0.6 s, OTP check → alert 0.9 s later (name, type, level, time; no call words), blocked chat disconnected, no repeat alert, second type alerted |
+| `SCAM-04b` | Dograh `check_scam` tool (8 s timeout) + prompt for every caller (workflow v20) | Text chat. ACTIVE: OTP, resort fee → high by rule (0.1–0.2 s); charity → medium, school fees look-alike → low (classifier 2.2–2.6 s, filler played); general question → `search_knowledge`; son's dinner → no call. Unknown: fake grandchild → high by classifier (2.4 s), nothing stored. `message` said word for word; no names, numbers or amounts in `situation`; agent never asked for the OTP; high events wait `pending` (no bot token yet, `NOTI-02b`) |
+| `SCAM-03b` | Live eval of the full engine on all 53 cases (`gemini-3.5-flash-lite`, finished 2026-11-16) | 35/35 high → high with the right type, all 7 types + `other` (rules 22, classifier 13); medium 5/5 after `SCAM-03c` (4/5 before: `suspicious-03` flagged high); low and none 13/13 not warned (low: 2 low, 3 none; none: 8/8); classifier p50 2.1 s, p90 2.9 s, max 3.8 s, 0/31 over the 6 s budget; one transient 503 (`benign-04`) fell back to rules, re-ran fine |
+| `SCAM-03c` | Engine caps a classifier `high` at `medium` when no signal from either layer is a request (`ASK_SIGNALS` in `engine.py`) | 532 tests (cap fires on a fake `high` verdict; a request named by either layer keeps `high`); rules find a request in all 13 classifier-decided high cases, so none can be capped; `suspicious-03` re-run live → medium (this time the classifier itself said medium: it is not stable on this case, the cap is); eval on 53 cases: nothing flagged high or warned beyond its label |
+| `NOTI-02b` | Live check with the real Telegram bot: dashboard connect, then a scam case in text chat → alert on the family's Telegram. **Criterion 5 done** (with `SCAM-03b`: 35/35 high flagged across all 7 types + `other`) | 2026-11-16. Bot token valid, no webhook; connect from the dashboard by the owner of the ACTIVE elder. Text chat, workflow v21 (`caller_number` = the ACTIVE test number): money-sent-by-mistake story with a link → `check_scam` high / other by classifier, warning said, event alert `sent` 5.6 s after the check (Bot API accepted the message). Same session's v20 run as the unknown number: OTP → high / bank by rule, warned, nothing stored, no alert |
 
 ## In progress
 
@@ -41,11 +52,13 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- None scheduled.
+- Week 3 goal (criterion 5) is done. Not yet planned: criterion 6 (ride booking: `ride-sim` has `/health` only) and criterion 7 (family call activity: `call_logs` are stored, but no web route or dashboard page shows them).
+- `SCAM-05` (if time allows): post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
 
 ## Backlog (unscheduled)
 
 - Admin KB page: add and manage KB documents, embedded and indexed on save (the admin half of criterion 8; reuses `app/services/rag/ingest.py`). To be planned.
+- Admin scam patterns page: add and edit patterns per scam type (reuses `sync_patterns` in `app/services/scam/patterns.py`). To be planned with the admin KB page.
 - OSRM service in `infra/docker-compose.yml`, with the ride units.
 - Web call simulation page; point `/demo` "Mở trang gọi thử" at it.
 - Public "Tầm nhìn" / "Tài nguyên" pages (waiting for design).
@@ -54,11 +67,11 @@ Update after every meaningful implementation change.
 
 - Geocoding: self-hosted Nominatim/Photon vs Goong API.
 - Real telephony provider (if time allows) and its caller ID format.
-- In-call scam check trigger: per turn vs every N turns.
 - Data retention period for transcripts and recordings.
 - Public demo hotline number for `/demo` (depends on real telephony), and whether the footer should name the university.
 - Orphaned elders: if an owner deletes their account, the elder stays but pending link requests have nobody to approve them.
 - Link request notifications: owners only see requests on the dashboard until the Notification Service exists.
+- KB search too loose for hotline questions: in `NOTI-02b`, `search_knowledge` for "số tổng đài Viettel Post" returned the emergency-numbers doc with `found: true`, so the agent could read out an unrelated number. Tighten the thresholds, or add a KB doc on official hotlines?
 
 ## Architecture decisions
 
@@ -70,7 +83,15 @@ Update after every meaningful implementation change.
 - KB search open to every live call, unknown and pending-consent callers included: the KB holds no personal data, and callers can ask about the service before consenting.
 - Embeddings: `gemini-embedding-001` at 768 dims for memories and KB: smaller HNSW index, enough for short Vietnamese text. Changing it means a full re-index.
 - Telegram for urgent alerts, Email for reports: email too slow for scam alerts.
+- Telegram connect by a one-time deep link (`t.me/<bot>?start=<token>`) read with `getUpdates` polling: no webhook, so no public URL or tunnel is needed; the token is hashed, expires in 15 min and works once. One chat per family account; two accounts may share a chat.
+- Family scam alerts reach each member at most once: one successful send marks the event `sent`, and members whose send failed then aren't retried (a retry would duplicate it for the others). All sends failing → retried 30 s apart, `failed` after 5. Nobody connected, or the event is over 1 h old → `skipped`: no late alerts (user decision).
 - Scam check split: real-time in-call + async post-call memory extraction.
+- In-call scam check is a tool the agent calls (`check_scam`), not a per-turn check: Dograh 1.50.0 has no per-turn backend hook (node types: `startCall`, `agentNode`, `endCall`, `globalNode`, `webhook`, `trigger`, `qa`). The agent calls it when the caller tells it about a suspicious call or request; the post-call scan (`SCAM-05`) catches what it misses.
+- Scam types: 7 (police, bank and relative impersonation, investment, health products, resort contracts, fake charity) + `other`, matching the KB scam doc; more can be added later (a migration widens the `CHECK`).
+- Scam classification uses its own Gemini model (`GEMINI_SCAM_MODEL`, default `gemini-3.5-flash-lite`): the free tier's 20 requests/day per model then isn't shared with memory extraction, and the lite model answers in ~2 s, inside the in-call budget.
+- In-call scam check budget 6 s (`SCAM_CHECK_TIMEOUT_SECONDS`), under the `check_scam` tool's 8 s timeout in Dograh (HTTP tools have no upper limit; the default 5 s was too tight: a first call in a fresh process took 4 s and fell back). Past it, or on any LLM error, the layer-1 result is the answer; a delayed tool message covers the wait.
+- A classifier `high` with nothing asked for is capped at `medium` in the engine (user decision, 2026-11-16): high alerts the family, so it needs a request signal (money, code, personal data, link/app) from the rules or the classifier. Chosen over a prompt change: the classifier flips between medium and high on such stories (`suspicious-03`), and the cached eval verdicts stay valid. A real scam whose request neither layer names is warned as medium and not alerted.
+- Every caller gets the scam warning (no personal data needed), but only ACTIVE elders (consent given) get stored scam events and family alerts.
 - Registration of a taken number returns 202 `link_requested`: tells the requester the number is registered (no personal data); accepted as inherent to the spec.
 - Family sees call metadata + scam alerts only, never transcripts or memories; no per-call summaries: elder privacy; content stays for memory and scam analysis.
 - Dograh-managed LLM/STT/TTS for calls (voice "Ngoc"), no Azure or Gemini provider: vi-VN works without extra provider keys; calls depend on Dograh's cloud service.
@@ -98,5 +119,9 @@ Update after every meaningful implementation change.
 - Dograh workflow: signing up on the self-host calls Dograh's cloud (managed service key, billing account, SIP), and the org default routes LLM/STT/TTS/embeddings through that managed connection. Any saved change, Context Variables included, creates a draft: publish it. Edge labels become LLM function names (non-ASCII → `_`), so use ASCII `snake_case` labels. Text chat speaks only the greeting, and the prompt's first turn waits for the caller. Gemini free tier is 20 requests/day per model.
 
 - Dograh runs and tools: tool calls (name, LLM arguments, result, timestamps) are in `workflow_runs.logs -> realtime_feedback_events` (`rtf-function-call-start`/`-end`); text chats leave `logs.conversation` empty (query in `dograh/README.md`). Tools are loaded by UUID at run time, so tool edits need no workflow publish. Descriptions pasted from the JSON exports must drop the JSON escapes (`\"`).
+
+- Scam eval: `scripts.eval_scam` caches classifier verdicts in `backend/.cache/scam_eval/<model>.jsonl` (gitignored), keyed by situation + `PROMPT_VERSION`. The free tier also has a per-minute limit (12 back-to-back calls hit it): calls start 6 s apart, a 429 is retried once after 65 s, and a second 429 (daily quota) stops the run; the next run goes on. The daily quota resets at midnight Pacific time (15:00 in Vietnam, 14:00 during US daylight saving time). Use `--limit N` to keep some daily quota for live call tests. `--rules-only` needs no DB or key. The cache holds the engine's result, not the raw classifier verdict: after a change to how the engine treats a verdict, drop the affected rows from the cache file so they re-run.
+
+- Smoke runs with a second backend process: its scheduler works on every row of its database, so against the dev DB it handles the user's own pending work (a NOTI-02 smoke marked a real pending alert `skipped`; restored). Point such runs at a throwaway database, or turn the jobs off. `TELEGRAM_API_BASE_URL` points the bot at a local fake Bot API for end-to-end checks without a real bot.
 
 - Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` to print Vietnamese.

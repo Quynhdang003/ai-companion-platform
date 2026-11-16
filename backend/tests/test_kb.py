@@ -1,11 +1,8 @@
-import asyncio
-from collections.abc import Sequence
-
 import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.llm.client import EmbedTask, LLMError
+from app.llm.client import LLMError
 from app.models import KbChunk, KbDocument
 from app.services.rag.ingest import (
     EmptyDocumentError,
@@ -14,8 +11,8 @@ from app.services.rag.ingest import (
     embedding_text,
     sync_document,
 )
-from app.services.rag.search import fold, query_words, rrf_merge, search_kb, trigram_ids
-from tests.fakes import FakeLLMClient, fake_vector
+from app.services.rag.search import fold, query_words, rrf_merge, search_kb, trigram_ids, words
+from tests.fakes import FakeLLMClient, QueryVectorLLM, SlowLLM, fake_vector
 
 EMERGENCY = "Số điện thoại khẩn cấp"
 EMERGENCY_TEXT = (
@@ -24,26 +21,6 @@ EMERGENCY_TEXT = (
 )
 HOSPITAL = "Bệnh viện ở Hà Nội"
 HOSPITAL_TEXT = "Bệnh viện Bạch Mai ở số 78 đường Giải Phóng, quận Đống Đa, Hà Nội."
-
-
-class QueryVectorLLM(FakeLLMClient):
-    """Embeds every query as `query_as`, to exercise the vector ranking alone."""
-
-    def __init__(self, query_as: str) -> None:
-        super().__init__()
-        self.query_as = query_as
-
-    async def embed(self, texts: Sequence[str], *, task: EmbedTask) -> list[list[float]]:
-        if task == "query":
-            return [fake_vector(self.query_as) for _ in texts]
-        return await super().embed(texts, task=task)
-
-
-class SlowLLM(FakeLLMClient):
-    async def embed(self, texts: Sequence[str], *, task: EmbedTask) -> list[list[float]]:
-        if task == "query":
-            await asyncio.sleep(1)
-        return await super().embed(texts, task=task)
 
 
 @pytest.fixture
@@ -147,6 +124,18 @@ def test_query_words_are_distinct_accent_free_words() -> None:
     assert query_words("báo bao bão") == ["bao"]
     assert query_words("a & b | !c:* (d)") == ["a", "b", "c", "d"]
     assert query_words(" ?! _ ") == []
+
+
+def test_words_keep_order_and_repeats() -> None:
+    assert words("Tài khoản, tài KHOẢN đã bị khóa") == [
+        "tai",
+        "khoan",
+        "tai",
+        "khoan",
+        "da",
+        "bi",
+        "khoa",
+    ]
 
 
 def test_fold_matches_unaccent() -> None:

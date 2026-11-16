@@ -9,7 +9,7 @@ Read before adding, changing or calling any backend route. Behavior only; implem
   - `CurrentUser` (`app/core/auth.py`): Clerk session JWT as `Authorization: Bearer`; missing/invalid → 401 `unauthorized`. A verified user missing from the DB is created as `family`.
   - `require_role(*roles)` (`app/core/auth.py`): wrong role → 403 `forbidden`. `FamilyUser` = `require_role(family)`.
   - `require_dograh_key` (`app/core/dograh_auth.py`): `Authorization: Bearer <DOGRAH_API_KEY>`; missing/wrong → 401 `unauthorized`.
-- Required env unset → 500 `*_not_configured`: `auth_not_configured` (`CLERK_ISSUER`), `webhook_not_configured` (`CLERK_WEBHOOK_SECRET`), `dograh_not_configured` (`DOGRAH_API_KEY`).
+- Required env unset → 500 `*_not_configured`: `auth_not_configured` (`CLERK_ISSUER`), `webhook_not_configured` (`CLERK_WEBHOOK_SECRET`), `dograh_not_configured` (`DOGRAH_API_KEY`), `telegram_not_configured` (`TELEGRAM_BOT_TOKEN` or `TELEGRAM_BOT_USERNAME`).
 - Phone input is normalized with `normalize_vn_phone` (VN mobile + landline); responses carry E.164.
 - CORS: browser origins from `CORS_ORIGINS`.
 
@@ -26,6 +26,11 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
 | `GET /api/link-requests/outgoing` | F | 200 requests I sent: `[{id, phone_e164, status, elder_full_name (approved only), created_at, decided_at}]` | |
 | `POST /api/link-requests/{id}/approve` | F | 200 `{id, status, decided_at}`; requester becomes `viewer` | 404 `not_found` (missing or not owner), 409 `already_decided` |
 | `POST /api/link-requests/{id}/reject` | F | 200 `{id, status, decided_at}` | 404 `not_found` (missing or not owner), 409 `already_decided` |
+| `GET /api/telegram` | F | 200 `{enabled, connected, linked_at}`: `enabled` = Telegram is set up on the server | |
+| `POST /api/telegram/link` | F | 200 `{url, expires_at}`: `https://t.me/<bot>?start=<token>`, one-time, `TELEGRAM_LINK_TTL_MINUTES` (15); replaces any unused link, a connected chat stays until the new link is used | 500 `telegram_not_configured` |
+| `DELETE /api/telegram` | F | 200 `{enabled, connected: false, linked_at: null}`; no more alerts, unused link dropped; repeatable | |
+
+Telegram connect: opening the link sends `/start <token>` to the bot from the user's chat. A polling job (`getUpdates`, every `TELEGRAM_POLL_INTERVAL_SECONDS`) links that chat if the token is live (private chats only) and replies in Vietnamese (connected / link no longer valid / help). The website polls `GET /api/telegram` to see it connected.
 
 ## Clerk webhook
 
@@ -59,6 +64,14 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
   - Up to 3 KB chunks (≤ 800 chars each) from the hybrid search, best first. If the query embedding fails or takes over 2 s, the search is lexical only.
   - Nothing relevant → 200 with `found: false`, `results: []`. `message` is speakable Vietnamese: "Dạ, con chưa có thông tin về việc này ạ." (not found) or "Dạ, con tìm được thông tin rồi ạ." (found; the agent answers from `results`).
   - Errors: 401 `invalid_session`, 422 `validation_error` (missing or empty `query`).
+
+- `POST /tools/check-scam` `{session_token, situation}` → 200 `{risk_level, scam_type, message}`.
+  - `situation` (1–1000 chars, not blank): what the caller was told or asked, a few sentences written by the LLM; never logged or stored.
+  - `risk_level`: `none` | `low` | `medium` | `high` (definitions on `RiskLevel`, `app/models/scam.py`). `scam_type`: a `ScamType` value for `medium` and `high`, `null` otherwise.
+  - Scam Risk Engine (`app/services/scam/engine.py`): a decisive layer-1 rule answers `high` at once; otherwise the Gemini classifier decides within `SCAM_CHECK_TIMEOUT_SECONDS` (6 s), and its `high` is returned as `medium` when no signal from either layer says something was asked for (money, a code, personal data, a link or app). Past the budget, or on any LLM error, the layer-1 result is returned: never an HTTP error.
+  - `message`: templated speakable Vietnamese (`app/services/scam/warnings.py`), the agent says it as is. `high` / `medium`: "rất có thể là lừa đảo" / "có dấu hiệu lừa đảo" + what to do + one piece of advice for the type. `low` / `none`: be careful / no sign found. It never promises a family alert.
+  - Any caller with a live session gets the warning. Only an ACTIVE elder's `medium` or `high` risk is stored (`scam_events`: type, level, signal codes, who decided; one row per call and type, the level only goes up). The first time it becomes `high`, `alert_status = pending`: the alert job (`app/services/notification/scam_alerts.py`, every `ALERT_JOB_INTERVAL_SECONDS`) sends it to the Telegram chat of every family member linked to the elder who connected one (`sent`); nobody connected or older than 1 h → `skipped`; every send failing → retried 30 s apart, then `failed` after 5.
+  - Errors: 401 `invalid_session`, 422 `validation_error` (missing, empty or blank `situation`).
 
 - `POST /hooks/call-ended` `{workflow_run_id, duration_seconds?, disposition?, transcript_url?, recording_url?}` → 200 `{received: true}`. Dograh's end-of-call Webhook node; values are strings, `""` = not sent, `duration_seconds` is rounded to whole seconds.
   - Upserts one `call_logs` row for the run's `call_session` (Dograh retries deliveries).

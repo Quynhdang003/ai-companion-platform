@@ -8,7 +8,7 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 
 1. Identify registered elderly callers by phone number and greet them by name (pre-call hook < 500ms).
 2. Remember info across calls and reuse it in context (e.g. "same as last time" → home → Bach Mai Hospital).
-3. Detect scams in-call (impersonating police/bank/grandchildren, investment, health supplements, resort contracts, fake charity), warn the user, alert family via Telegram on high risk.
+3. Detect scams in-call (7 types: impersonating police, banks or relatives, investment, health products, resort contracts, fake charity; anything else is `other`, and types can be added later), warn the user, alert family via Telegram on high risk.
 4. Execute tasks via tool calling, always with verbal confirmation before sensitive actions.
 5. Let family register, manage profiles and view call activity (time, duration, scam alerts) on the website, never conversation content.
 
@@ -31,7 +31,7 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
    - `PENDING_VERIFICATION`: told who registered the number; AI asks consent → tool `POST /tools/confirm-activation`.
    - Unknown/blocked: generic greeting, no personal data; the session is linked to no elder.
 4. All HTTP tools send `session_token` via Preset Parameter `{{initial_context.session_token}}`; backend resolves `elder_id`.
-5. Scam Risk Engine scores each turn; high risk → AI warns + Telegram alert to family (scam type, risk level and time only, no quotes from the call).
+5. When the caller describes a suspicious call or request, the AI calls the scam check tool and the Scam Risk Engine scores it. Every caller gets the warning. For ACTIVE elders only, the event is stored and high risk → Telegram alert to family (scam type, risk level and time only, no quotes from the call).
 6. End-of-call webhook (transcript, linked via `workflow_run_id`) → async memory extraction. No per-call summary is generated.
 
 ### C – Ride booking
@@ -93,7 +93,7 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 2. First call from a `PENDING_VERIFICATION` number asks consent; on yes → `ACTIVE` + `consent_at`.
 3. `ACTIVE` callers are greeted by name within 2s of connecting; unknown numbers get a generic greeting with no personal data.
 4. Info from a previous call is correctly recalled in a later call.
-5. On a test set covering all 6 scam types, high-risk scenarios are flagged, the AI warns in-call and family gets a Telegram alert.
+5. On a test set covering all 7 scam types, high-risk scenarios are flagged, the AI warns in-call and family gets a Telegram alert.
 6. Voice ride booking works via quote → confirm → book; `book_ride` never runs without confirmation; simulator fault cases are handled and reported to the user.
 7. Family sees call activity (no conversation content) only for elders they manage.
 8. Admin adds a KB document and the AI answers questions from it.

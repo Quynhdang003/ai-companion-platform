@@ -6,14 +6,12 @@ workers never process the same one. Logs never contain transcript or memory text
 """
 
 import logging
-from collections.abc import Callable
-from contextlib import AbstractAsyncContextManager
 from datetime import timedelta, timezone
 
 from sqlalchemy import case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import SessionLocal
+from app.core.db import SessionFactory, SessionLocal
 from app.llm.client import (
     LLMClient,
     LLMError,
@@ -30,8 +28,6 @@ MAX_ATTEMPTS = 3
 BATCH_SIZE = 5
 # Relative dates in a call ("tuần sau") are resolved against the Vietnamese calendar date.
 VN_TZ = timezone(timedelta(hours=7))
-
-SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 
 async def process_next(db: AsyncSession, llm: LLMClient) -> bool:

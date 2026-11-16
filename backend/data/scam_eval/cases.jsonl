@@ -1,0 +1,53 @@
+{"id": "police-01", "level": "high", "scam_type": "police_impersonation", "tags": [], "situation": "Có người gọi xưng là công an quận, nói bác liên quan đến vụ rửa tiền, bảo bác chuyển hết tiền tiết kiệm vào tài khoản tạm giữ để điều tra."}
+{"id": "police-02", "level": "high", "scam_type": "police_impersonation", "tags": [], "situation": "Một người mặc quần áo công an gọi video qua Zalo, gửi lệnh bắt có tên bác, hỏi bác có bao nhiêu tiền trong tài khoản, số dư là bao nhiêu."}
+{"id": "police-03", "level": "high", "scam_type": "police_impersonation", "tags": ["no_diacritics"], "situation": "co nguoi xung la can bo vien kiem sat bao bac sap bi khoi to, bat bac giu bi mat va chuyen tien de chung minh trong sach"}
+{"id": "police-04", "level": "high", "scam_type": "police_impersonation", "tags": [], "situation": "Người gọi tự nhận là công an phường, bảo căn cước của bác sắp bị khóa, phải cài ứng dụng VNeID qua đường link họ gửi."}
+{"id": "police-05", "level": "high", "scam_type": "police_impersonation", "tags": ["short"], "situation": "Công an gọi bảo bác phải chuyển tiền ngay kẻo bị bắt."}
+{"id": "bank-01", "level": "high", "scam_type": "bank_impersonation", "tags": [], "situation": "Có người xưng nhân viên ngân hàng, báo tài khoản của bác có giao dịch lạ, xin bác đọc mã OTP vừa gửi về để hủy giao dịch."}
+{"id": "bank-02", "level": "high", "scam_type": "bank_impersonation", "tags": [], "situation": "Bác nhận tin nhắn mang tên ngân hàng, báo tài khoản bị trừ tiền, bảo bấm vào đường link để đăng nhập lại."}
+{"id": "bank-03", "level": "high", "scam_type": "bank_impersonation", "tags": ["no_diacritics"], "situation": "nguoi goi noi la tong dai ngan hang, moi bac nang han muc the tin dung, hoi so the va ba so mat sau the"}
+{"id": "bank-04", "level": "high", "scam_type": "bank_impersonation", "tags": ["short"], "situation": "Người ta hỏi mã OTP của bác."}
+{"id": "bank-05", "level": "high", "scam_type": "bank_impersonation", "tags": [], "situation": "Có người gọi bảo thẻ ngân hàng của bác bị khóa, cần bác đọc mật khẩu để mở lại."}
+{"id": "relative-01", "level": "high", "scam_type": "relative_impersonation", "tags": [], "situation": "Có người gọi báo cháu nội của bác bị tai nạn xe máy, đang cấp cứu, cần bác chuyển ngay hai mươi triệu tiền mổ vào tài khoản của bệnh viện."}
+{"id": "relative-02", "level": "high", "scam_type": "relative_impersonation", "tags": [], "situation": "Số lạ gọi xưng là cháu, bảo mới đổi số, đang bị công an giữ, nhờ bà chuyển tiền gấp vào tài khoản của bạn cháu và đừng nói với bố mẹ cháu."}
+{"id": "relative-03", "level": "high", "scam_type": "relative_impersonation", "tags": [], "situation": "Tài khoản Zalo của con gái bác nhắn tin nhờ bác chuyển khoản gấp mười triệu, gọi video thì hình mờ rồi tắt máy."}
+{"id": "relative-04", "level": "high", "scam_type": "relative_impersonation", "tags": ["no_diacritics"], "situation": "co nguoi xung la thay giao cua chau, bao chau bac ngat o truong dang cap cuu, can chuyen tien vien phi ngay"}
+{"id": "relative-05", "level": "high", "scam_type": "relative_impersonation", "tags": ["short"], "situation": "Có đứa xưng là cháu bác, xin tiền gấp."}
+{"id": "investment-01", "level": "high", "scam_type": "investment", "tags": [], "situation": "Có người mời bác góp tiền vào ứng dụng đầu tư vàng, nói mỗi ngày lãi ba phần trăm, không có rủi ro."}
+{"id": "investment-02", "level": "high", "scam_type": "investment", "tags": [], "situation": "Bác được thêm vào nhóm Zalo, có thầy chỉ mua cổ phiếu, mọi người khoe lãi nhiều, bảo bác rút sổ tiết kiệm nạp vào tài khoản đầu tư."}
+{"id": "investment-03", "level": "high", "scam_type": "investment", "tags": ["no_diacritics"], "situation": "nguoi ta moi bac lam viec nhe luong cao, like video nhan hoa hong, gio bao phai nap them tien moi rut duoc"}
+{"id": "investment-04", "level": "high", "scam_type": "investment", "tags": [], "situation": "Có người giới thiệu dự án đất nền, hứa trả lãi hằng tháng gấp đôi gửi ngân hàng, bảo bác đặt cọc ngay hôm nay."}
+{"id": "health-01", "level": "high", "scam_type": "health_product", "tags": [], "situation": "Người xưng là bác sĩ viện trung ương gọi, nói có thuốc chữa khỏi hẳn tiểu đường, bảo bác bỏ thuốc đang uống và chuyển khoản mười lăm triệu một liệu trình."}
+{"id": "health-02", "level": "high", "scam_type": "health_product", "tags": [], "situation": "Bác được mời dự hội thảo sức khỏe có tặng quà, ở đó họ đo máy bảo bác bệnh nặng, ép mua máy massage ba mươi triệu, trả góp cũng được."}
+{"id": "health-03", "level": "high", "scam_type": "health_product", "tags": ["no_diacritics"], "situation": "co nguoi goi bao bac duoc chon trong chuong trinh tri an, tang thuoc mien phi, chi can tra phi van chuyen hai trieu"}
+{"id": "health-04", "level": "high", "scam_type": "health_product", "tags": [], "situation": "Có người tự xưng dược sĩ gọi giới thiệu thuốc gia truyền đặc trị xương khớp, giao hàng tận nhà thu tiền."}
+{"id": "resort-01", "level": "high", "scam_type": "resort_contract", "tags": [], "situation": "Có người báo bác trúng thưởng kỳ nghỉ ở Nha Trang, mời đến khách sạn dự hội thảo nhận quà, rồi bắt ký hợp đồng thẻ hội viên và đặt cọc ngay."}
+{"id": "resort-02", "level": "high", "scam_type": "resort_contract", "tags": [], "situation": "Công ty du lịch mời bác mua quyền sở hữu kỳ nghỉ, cam kết cho thuê lại trả lợi nhuận mỗi năm, bảo trả trước năm mươi triệu."}
+{"id": "resort-03", "level": "high", "scam_type": "resort_contract", "tags": ["no_diacritics"], "situation": "nguoi ta moi bac di tour du lich gia re danh cho nguoi cao tuoi, chi con vai suat, bao chuyen tien coc ngay vao tai khoan ca nhan"}
+{"id": "resort-04", "level": "high", "scam_type": "resort_contract", "tags": [], "situation": "Bác được mời dự buổi giới thiệu du lịch nghỉ dưỡng, ở đó nhân viên thay nhau thuyết phục rồi ép bác quẹt thẻ ký hợp đồng ngay hôm nay."}
+{"id": "charity-01", "level": "high", "scam_type": "fake_charity", "tags": [], "situation": "Có người nhắn kể em bé bị ung thư cần tiền mổ gấp, xin bác quyên góp vào tài khoản cá nhân của họ."}
+{"id": "charity-02", "level": "high", "scam_type": "fake_charity", "tags": [], "situation": "Người xưng là nhà sư gọi xin bác công đức xây chùa, bảo chuyển khoản thì gia đình được bình an, không thì người nhà gặp hạn."}
+{"id": "charity-03", "level": "high", "scam_type": "fake_charity", "tags": ["no_diacritics"], "situation": "co nguoi xung la hoi chu thap do keu goi ung ho dong bao lu lut, dua so tai khoan ca nhan bao chuyen khoan"}
+{"id": "charity-04", "level": "high", "scam_type": "fake_charity", "tags": [], "situation": "Một người gọi xưng nhà báo, xin bác ủng hộ gấp cho gia đình nghèo, chuyển vào số tài khoản họ đọc."}
+{"id": "other-01", "level": "high", "scam_type": "other", "tags": [], "situation": "Người xưng điện lực gọi bảo nhà bác nợ tiền điện, chiều nay cắt điện nếu không chuyển tiền ngay."}
+{"id": "other-02", "level": "high", "scam_type": "other", "tags": [], "situation": "Có người bảo là bảo hiểm xã hội, nói bác được hoàn tiền, bảo cài ứng dụng qua đường link."}
+{"id": "other-03", "level": "high", "scam_type": "other", "tags": ["no_diacritics"], "situation": "nguoi xung la buu dien bao co buu pham gui bac, phai chuyen khoan phi truoc moi giao"}
+{"id": "other-04", "level": "high", "scam_type": "other", "tags": [], "situation": "Có người chuyển nhầm năm triệu vào tài khoản của bác, giờ gọi xin bác chuyển trả vào một tài khoản khác."}
+{"id": "suspicious-01", "level": "medium", "scam_type": "police_impersonation", "tags": [], "situation": "Có người xưng công an gọi bảo bác liên quan đến một vụ án, hẹn sẽ gọi lại."}
+{"id": "suspicious-02", "level": "medium", "scam_type": "relative_impersonation", "tags": [], "situation": "Có số lạ gọi xưng là cháu, bảo mới đổi số điện thoại."}
+{"id": "suspicious-03", "level": "medium", "scam_type": "investment", "tags": ["short"], "situation": "Có người rủ bác mua tiền ảo, nói chắc chắn lãi to."}
+{"id": "suspicious-04", "level": "medium", "scam_type": "health_product", "tags": ["short"], "situation": "Có người gọi mời bác mua thực phẩm chức năng."}
+{"id": "suspicious-05", "level": "medium", "scam_type": "resort_contract", "tags": ["short"], "situation": "Có người gọi báo bác trúng thưởng."}
+{"id": "lookalike-01", "level": "low", "scam_type": null, "tags": ["look_alike"], "situation": "Cháu gái bác gọi về bảo cuối tuần về thăm, nhờ bác chuyển ít tiền vào tài khoản của cháu để đóng học phí."}
+{"id": "lookalike-02", "level": "low", "scam_type": null, "tags": ["look_alike"], "situation": "Ngân hàng gọi mời bác mở thẻ tín dụng miễn phí."}
+{"id": "lookalike-03", "level": "low", "scam_type": null, "tags": ["look_alike"], "situation": "Bác muốn ủng hộ quỹ khuyến học của xã, cán bộ xã đến tận nhà nhận tiền và ghi biên lai."}
+{"id": "lookalike-04", "level": "low", "scam_type": null, "tags": ["look_alike"], "situation": "Bác bị phạt nguội, con trai bác đã lên cổng dịch vụ công tra cứu và đi nộp phạt ở kho bạc."}
+{"id": "lookalike-05", "level": "low", "scam_type": null, "tags": ["look_alike"], "situation": "Bác xem quảng cáo thuốc trên ti vi, hỏi con thuốc đó có tốt không."}
+{"id": "benign-01", "level": "none", "scam_type": null, "tags": ["look_alike"], "situation": "Bác ra quầy ngân hàng gần nhà để gửi tiết kiệm, nhân viên hướng dẫn bác ký giấy."}
+{"id": "benign-02", "level": "none", "scam_type": null, "tags": ["look_alike"], "situation": "Bác sĩ ở bệnh viện Bạch Mai hẹn bác tuần sau tái khám tiểu đường."}
+{"id": "benign-03", "level": "none", "scam_type": null, "tags": ["look_alike"], "situation": "Bác đi chùa gần nhà, có thùng công đức, bác bỏ vào mấy trăm nghìn."}
+{"id": "benign-04", "level": "none", "scam_type": null, "tags": [], "situation": "Con trai bác gọi bằng số quen, bảo tối nay về ăn cơm."}
+{"id": "benign-05", "level": "none", "scam_type": null, "tags": ["look_alike"], "situation": "Bác vừa nhận tin nhắn báo lương hưu tháng này đã về tài khoản."}
+{"id": "benign-06", "level": "none", "scam_type": null, "tags": ["short"], "situation": "Bác hỏi giá vàng hôm nay bao nhiêu."}
+{"id": "benign-07", "level": "none", "scam_type": null, "tags": ["no_diacritics"], "situation": "con gai bac ve tham, dua bac di kham benh o benh vien"}
+{"id": "benign-08", "level": "none", "scam_type": null, "tags": ["look_alike"], "situation": "Nhân viên điện lực đến tận nhà ghi số điện, đưa hóa đơn tiền điện."}

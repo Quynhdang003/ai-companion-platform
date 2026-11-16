@@ -4,12 +4,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from app.core.config import get_settings
 from app.core.db import DbSession
 from app.core.dograh_auth import require_dograh_key
 from app.core.errors import AppError
-from app.llm.client import LLMClient, get_llm_client
+from app.llm.client import LLMClient, get_llm_client, get_scam_llm_client
 from app.models import CallSession
 from app.schemas.dograh import (
+    CheckScamOut,
+    CheckScamRequest,
     ConfirmActivationOut,
     KnowledgeResult,
     SearchKnowledgeOut,
@@ -20,6 +23,8 @@ from app.services.identity import call_sessions, elders
 from app.services.identity.call_sessions import InvalidSessionError
 from app.services.identity.elders import ActivationOutcome, ElderUnavailableError
 from app.services.rag.search import search_kb
+from app.services.scam import engine, events
+from app.services.scam.warnings import warning_message
 
 router = APIRouter(prefix="/tools", tags=["dograh"], dependencies=[Depends(require_dograh_key)])
 
@@ -76,4 +81,28 @@ async def search_knowledge(
         found=bool(hits),
         message=_KNOWLEDGE_FOUND if hits else _KNOWLEDGE_NOT_FOUND,
         results=[KnowledgeResult(title=hit.title, content=hit.content) for hit in hits],
+    )
+
+
+@router.post("/check-scam", response_model=CheckScamOut)
+async def check_scam(
+    body: CheckScamRequest,
+    db: DbSession,
+    llm: Annotated[LLMClient, Depends(get_scam_llm_client)],
+) -> CheckScamOut:
+    """How likely what the caller describes is a scam, with the warning to say.
+
+    Every live call gets the warning; only ACTIVE elders' medium and high risks are stored
+    (as codes, never the situation), and high risk queues a family alert.
+    """
+    call = await _call_session(db, body.session_token)
+    assessment = await engine.assess(
+        db, llm, body.situation, timeout=get_settings().scam_check_timeout_seconds
+    )
+    await events.record(db, call, assessment)
+    await db.commit()
+    return CheckScamOut(
+        risk_level=assessment.level,
+        scam_type=assessment.scam_type,
+        message=warning_message(assessment.level, assessment.scam_type),
     )

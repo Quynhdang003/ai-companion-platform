@@ -55,6 +55,14 @@ Users are also created (as `family`) on their first authenticated request, so si
 | Dograh API | http://localhost:8010 (`/api/v1/health`) |
 | Dograh MinIO | http://localhost:9000 (console 9001) |
 
+### Telegram (family scam alerts)
+
+1. In Telegram, message [@BotFather](https://t.me/BotFather): `/newbot`, pick a name and a username ending in `bot`.
+2. `backend/.env`: `TELEGRAM_BOT_TOKEN` = the token BotFather gives, `TELEGRAM_BOT_USERNAME` = the username without `@`. Restart the backend (settings are read at start).
+3. Family members connect on the dashboard ("Kết nối Telegram" → "Mở Telegram" → "Bắt đầu" in Telegram).
+
+The backend fetches the bot's messages itself (`getUpdates`), so no public URL is needed; the bot must not have a webhook set (Bot API `deleteWebhook`). Only one backend process may poll a bot at a time. Without a token, connecting and the alerts are off and high-risk scam events stay `pending`.
+
 ## Run
 
 ```bash
@@ -70,6 +78,9 @@ cd backend && uv run fastapi dev app/main.py --port 8000
 
 # Sample knowledge-base documents (backend/data/kb, needs GEMINI_API_KEY; safe to re-run)
 cd backend && uv run python -m scripts.seed_kb
+
+# Sample scam patterns (backend/data/scam_patterns, one file per scam type; same rules)
+cd backend && uv run python -m scripts.seed_scam_patterns
 
 # Ride simulator -> http://localhost:8001/health
 cd ride-sim && uv run fastapi dev app/main.py --port 8001

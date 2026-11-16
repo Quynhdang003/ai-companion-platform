@@ -19,11 +19,19 @@
   - Structured output: `generate_json(prompt, Schema)` returns the validated Pydantic model.
   - Embeddings: `embed(texts, task="document" | "query")`, always `EMBEDDING_DIMS` (`app/llm/embeddings.py`) long.
   - Errors: `LLMError`; `LLMRateLimitedError` (429, retry later); `LLMNotConfiguredError` (no `GEMINI_API_KEY`).
+  - Scam classification uses `get_scam_llm_client()` (`GEMINI_SCAM_MODEL`), injected the same way; the test `client` fixture overrides it too.
+  - On the real-time call path (Dograh tools), an LLM call runs against a deadline (`asyncio.wait_for`) and any `LLMError` or timeout falls back to a non-LLM answer: the tool never fails because of the LLM (`app/services/scam/engine.py`).
+  - Prompts whose results are cached (`scripts.eval_scam`) carry a `PROMPT_VERSION`; bump it on any prompt change.
+- Notifications go through `NotificationChannel` (`app/services/notification/channel.py`: `send(recipient, text)`, plain text). Errors: `NotificationError` (retry later); `RecipientUnreachableError` (e.g. the chat blocked the bot: stop sending to it). Telegram is `TelegramBot` (`telegram.py`, Bot API over httpx); tests use `FakeTelegramBot` (`tests/fakes.py`).
+  - Bot API URLs contain the bot token: never log or raise a URL or a chained httpx error (`raise ... from None`); httpx's INFO request log is silenced.
+  - Messages to family carry metadata and scam type/level only; logs never carry chat ids.
 - Background jobs (pattern: `app/services/memory/job.py`):
   - A status column marks the queued work.
   - The job is registered in `app/core/scheduler.py` (APScheduler, started in the FastAPI lifespan; `SCHEDULER_ENABLED=false` turns it off).
   - Claim one row at a time with `FOR UPDATE SKIP LOCKED`, and write its results in a savepoint, so an error leaves nothing half-written.
   - LLM errors count as attempts, up to a max, then `failed`. Rate limits and a missing key don't count: the run stops and the row stays queued.
+  - A job whose failures are worth retrying soon (sends) waits a delay between attempts instead of retrying in the same run (`scam_alerts.py`: `RETRY_DELAY` from `updated_at`).
+  - Jobs open sessions with a `SessionFactory` (`app/core/db.py`, default `SessionLocal`); tests pass `same_session(session)` (`tests/conftest.py`).
   - Tests call the per-row function directly with `FakeLLMClient`; the test client never starts the scheduler.
 
 ## TypeScript
@@ -66,7 +74,11 @@
 - Store tokens hashed; never log tokens, phone numbers or transcripts in plain logs.
 - Nullable JSONB columns use `JSONB(none_as_null=True)`: by default SQLAlchemy writes Python `None` as JSON `null`, which `IS NULL` doesn't match.
 - Accent-free text search: generated columns and indexes call `immutable_unaccent()` (from the KB migration; `unaccent` itself isn't IMMUTABLE). In Python, `fold()` (`app/services/rag/search.py`) strips diacritics the same way.
-- Hybrid search (`app/services/rag/search.py`): each ranking keeps only relevant rows (full-text word coverage, trigram threshold, max vector distance), then `rrf_merge` fuses them; the query embedding has a short timeout and falls back to lexical search. New searchable corpora (scam patterns) reuse `query_words`, `fold` and `rrf_merge`, and get thresholds calibrated with real embeddings.
+- Hybrid search (`app/services/rag/search.py`): each ranking keeps only relevant rows (full-text word coverage, trigram threshold, max vector distance), then `rrf_merge` fuses them; the query embedding has a short timeout (`embed_query`) and falls back to lexical search. New searchable corpora reuse `words`, `fold`, `rrf_merge` and `embed_query`, and get thresholds calibrated with real embeddings.
+  - Scam patterns (`app/services/scam/search.py`) are searched with a situation of a few sentences, not a question: phrase queries on word pairs (`word_pairs`, function words dropped) + vector, no trigram.
+- Scam rules (`app/services/scam/rules.py`): phrases are matched accent-free on whole words, so each phrase must stay unambiguous once folded ("giữ bí mật", not "bí mật", which folds like "bị mất"). A new phrase that folds like an everyday word gets a look-alike test (`test_look_alike_words_are_not_signals`). A decisive rule must only fire on cases no legitimate caller produces; the test set (`backend/data/scam_eval/`) checks it. `Signal` codes live in `app/models/scam.py`: the rules, the classifier's output schema and stored scam events share them. A new signal for something the elder is asked to do also goes in `ASK_SIGNALS` (`app/services/scam/engine.py`): without one of those, a classifier `high` is capped at `medium`.
+- Columns holding a scam type use `scam_type_column()` (`app/models/scam.py`), so every table shares the same values and its `CHECK` widens in one migration when a type is added.
+- Seed data lives in `backend/data/`, loaded by a re-runnable script that skips unchanged rows (`scripts.seed_kb`; `scripts.seed_scam_patterns` embeds all new and changed patterns in one request).
 
 ## File organization
 

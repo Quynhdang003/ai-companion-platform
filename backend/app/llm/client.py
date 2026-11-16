@@ -129,3 +129,15 @@ def get_llm_client() -> LLMClient:
         settings.gemini_embedding_model,
         settings.llm_timeout_seconds,
     )
+
+
+@lru_cache
+def get_scam_llm_client() -> LLMClient:
+    """Same as `get_llm_client`, on the scam model (`GEMINI_SCAM_MODEL`)."""
+    settings = get_settings()
+    return GeminiClient(
+        settings.gemini_api_key,
+        settings.gemini_scam_model,
+        settings.gemini_embedding_model,
+        settings.llm_timeout_seconds,
+    )

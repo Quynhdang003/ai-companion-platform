@@ -36,10 +36,30 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
     llm_timeout_seconds: float = 30.0
+    # Scam classification runs on its own model: on the free tier each model has its own
+    # daily quota, so in-call checks don't share it with memory extraction.
+    gemini_scam_model: str = "gemini-3.5-flash-lite"
+    # Whole in-call scam check (pattern search + classifier); past it, layer-1 rules answer.
+    # Below the check_scam tool's timeout in Dograh (8 s, `dograh/tools/check_scam.json`).
+    scam_check_timeout_seconds: float = 6.0
+
+    # Telegram bot (from @BotFather) for urgent family scam alerts. Unset token: connecting
+    # Telegram and the alerts are off.
+    telegram_bot_token: str = ""
+    # The bot's username without "@", for the t.me link family members open to connect.
+    telegram_bot_username: str = ""
+    # Override only to point the bot at a local fake of the Bot API.
+    telegram_api_base_url: str = "https://api.telegram.org"
+    # A connect link works once, within this time.
+    telegram_link_ttl_minutes: int = 15
 
     # Background jobs (APScheduler, started with the app). Tests never start them.
     scheduler_enabled: bool = True
     memory_job_interval_seconds: int = 30
+    # How often the bot's new messages (`/start <token>`) are fetched.
+    telegram_poll_interval_seconds: int = 3
+    # How often pending family scam alerts are sent (both jobs need a Telegram bot token).
+    alert_job_interval_seconds: int = 5
 
 
 @lru_cache

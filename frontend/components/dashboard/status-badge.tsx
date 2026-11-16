@@ -9,7 +9,7 @@ const tones = {
   muted: "bg-muted text-muted-foreground",
 } as const;
 
-type Tone = keyof typeof tones;
+export type Tone = keyof typeof tones;
 
 const elderStatus: Record<ElderStatus, { label: string; tone: Tone }> = {
   PENDING_VERIFICATION: { label: "Chờ cuộc gọi đầu tiên", tone: "warning" },
@@ -23,7 +23,7 @@ const requestStatus: Record<LinkRequestStatus, { label: string; tone: Tone }> = 
   rejected: { label: "Bị từ chối", tone: "muted" },
 };
 
-function StatusBadge({ label, tone }: { label: string; tone: Tone }) {
+export function StatusBadge({ label, tone }: { label: string; tone: Tone }) {
   // Badge defaults to 12px text; body text here never goes below 14px.
   return (
     <Badge className={cn("h-7 rounded-full px-3 text-sm", tones[tone])}>

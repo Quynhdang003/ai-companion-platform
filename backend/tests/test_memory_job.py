@@ -1,6 +1,4 @@
 import uuid
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -20,8 +18,8 @@ from app.models import (
     MemoryCategory,
     MemoryStatus,
 )
-from app.services.memory.job import MAX_ATTEMPTS, SessionFactory, process_next, run_memory_job
-from tests.conftest import add_elder, add_memory
+from app.services.memory.job import MAX_ATTEMPTS, process_next, run_memory_job
+from tests.conftest import add_elder, add_memory, same_session
 from tests.fakes import FakeLLMClient, fake_vector
 
 TURNS = [
@@ -81,14 +79,6 @@ async def reload(session: AsyncSession, log: CallLog) -> CallLog:
     return await session.scalar(
         select(CallLog).where(CallLog.id == log_id).execution_options(populate_existing=True)
     )
-
-
-def same_session(session: AsyncSession) -> SessionFactory:
-    @asynccontextmanager
-    async def factory() -> AsyncIterator[AsyncSession]:
-        yield session
-
-    return factory
 
 
 @pytest.fixture

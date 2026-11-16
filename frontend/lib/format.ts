@@ -18,3 +18,13 @@ const dateFormatter = new Intl.DateTimeFormat("vi-VN", {
 export function formatDate(iso: string): string {
   return dateFormatter.format(new Date(iso));
 }
+
+const timeFormatter = new Intl.DateTimeFormat("vi-VN", {
+  timeStyle: "short",
+  timeZone: "Asia/Ho_Chi_Minh",
+});
+
+/** ISO timestamp → time of day in Vietnam time, e.g. `14:32`. */
+export function formatTime(iso: string): string {
+  return timeFormatter.format(new Date(iso));
+}
