@@ -29,7 +29,8 @@ from app.core.dograh_auth import get_dograh_api_key
 from app.llm.client import get_llm_client, get_scam_llm_client
 from app.main import app
 from app.models import Elder, ElderFamily, ElderStatus, FamilyRole, Memory, MemoryCategory, User
-from tests.fakes import FakeLLMClient, fake_vector
+from app.services.ride.simulator import get_ride_provider
+from tests.fakes import FakeLLMClient, FakeRideProvider, fake_vector
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -151,6 +152,8 @@ async def client(session: AsyncSession, rsa_key: rsa.RSAPrivateKey) -> AsyncIter
     # Routes never reach Gemini in tests; override again to use a specific fake.
     app.dependency_overrides[get_llm_client] = lambda: FakeLLMClient()
     app.dependency_overrides[get_scam_llm_client] = lambda: FakeLLMClient()
+    # No ride simulator either; override again to use a specific fake.
+    app.dependency_overrides[get_ride_provider] = lambda: FakeRideProvider()
     # Telegram is set up, whatever the local .env says; override with None to turn it off.
     app.dependency_overrides[get_bot_username] = lambda: TEST_BOT_USERNAME
     try:
@@ -158,6 +161,20 @@ async def client(session: AsyncSession, rsa_key: rsa.RSAPrivateKey) -> AsyncIter
             yield c
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def rides(client: AsyncClient) -> FakeRideProvider:
+    """The ride provider the routes use (after `client` set its own): set places, errors."""
+    provider = FakeRideProvider()
+    app.dependency_overrides[get_ride_provider] = lambda: provider
+    return provider
+
+
+@pytest.fixture
+def no_confirm_wait(monkeypatch: pytest.MonkeyPatch) -> None:
+    """book_ride takes a quote at once: tests don't wait for a price to be read out."""
+    monkeypatch.setattr(get_settings(), "ride_confirm_min_seconds", 0.0)
 
 
 def svix_headers(body: str, secret: str = WEBHOOK_SECRET) -> dict[str, str]:

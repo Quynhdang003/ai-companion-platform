@@ -6,6 +6,14 @@ from app.models.elder_family import ElderFamily, FamilyRole
 from app.models.elder_link_request import ElderLinkRequest, LinkRequestStatus
 from app.models.kb import KbChunk, KbDocument
 from app.models.memory import Memory, MemoryCategory
+from app.models.ride import (
+    PlaceSource,
+    RideBooking,
+    RidePlaceOption,
+    RideQuote,
+    RideStatus,
+    RideType,
+)
 from app.models.scam import (
     AlertStatus,
     AssessedBy,
@@ -35,6 +43,12 @@ __all__ = [
     "Memory",
     "MemoryCategory",
     "MemoryStatus",
+    "PlaceSource",
+    "RideBooking",
+    "RidePlaceOption",
+    "RideQuote",
+    "RideStatus",
+    "RideType",
     "RiskLevel",
     "ScamEvent",
     "ScamPattern",

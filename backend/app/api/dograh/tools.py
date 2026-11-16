@@ -4,12 +4,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from app.api.dograh.session import resolve_call
 from app.core.config import get_settings
 from app.core.db import DbSession
 from app.core.dograh_auth import require_dograh_key
 from app.core.errors import AppError
 from app.llm.client import LLMClient, get_llm_client, get_scam_llm_client
-from app.models import CallSession
 from app.schemas.dograh import (
     CheckScamOut,
     CheckScamRequest,
@@ -19,8 +19,7 @@ from app.schemas.dograh import (
     SearchKnowledgeRequest,
     SessionToolRequest,
 )
-from app.services.identity import call_sessions, elders
-from app.services.identity.call_sessions import InvalidSessionError
+from app.services.identity import elders
 from app.services.identity.elders import ActivationOutcome, ElderUnavailableError
 from app.services.rag.search import search_kb
 from app.services.scam import engine, events
@@ -38,17 +37,10 @@ _KNOWLEDGE_FOUND = "Dạ, con tìm được thông tin rồi ạ."
 _KNOWLEDGE_NOT_FOUND = "Dạ, con chưa có thông tin về việc này ạ."
 
 
-async def _call_session(db: DbSession, token: str) -> CallSession:
-    try:
-        return await call_sessions.resolve(db, token)
-    except InvalidSessionError as exc:
-        raise AppError(401, "invalid_session", "Phiên gọi đã hết hạn, vui lòng gọi lại.") from exc
-
-
 @router.post("/confirm-activation", response_model=ConfirmActivationOut)
 async def confirm_activation(body: SessionToolRequest, db: DbSession) -> ConfirmActivationOut:
     """Call only after the elder has said yes to using the service."""
-    call = await _call_session(db, body.session_token)
+    call = await resolve_call(db, body.session_token)
     try:
         activation = await elders.activate(db, call)
     except ElderUnavailableError as exc:
@@ -75,7 +67,7 @@ async def search_knowledge(
 
     Open to every live call, registered or not: the KB holds no personal data.
     """
-    await _call_session(db, body.session_token)
+    await resolve_call(db, body.session_token)
     hits = await search_kb(db, llm, body.query, limit=KNOWLEDGE_RESULTS)
     return SearchKnowledgeOut(
         found=bool(hits),
@@ -95,7 +87,7 @@ async def check_scam(
     Every live call gets the warning; only ACTIVE elders' medium and high risks are stored
     (as codes, never the situation), and high risk queues a family alert.
     """
-    call = await _call_session(db, body.session_token)
+    call = await resolve_call(db, body.session_token)
     assessment = await engine.assess(
         db, llm, body.situation, timeout=get_settings().scam_check_timeout_seconds
     )

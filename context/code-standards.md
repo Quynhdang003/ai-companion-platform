@@ -25,6 +25,10 @@
 - Notifications go through `NotificationChannel` (`app/services/notification/channel.py`: `send(recipient, text)`, plain text). Errors: `NotificationError` (retry later); `RecipientUnreachableError` (e.g. the chat blocked the bot: stop sending to it). Telegram is `TelegramBot` (`telegram.py`, Bot API over httpx); tests use `FakeTelegramBot` (`tests/fakes.py`).
   - Bot API URLs contain the bot token: never log or raise a URL or a chained httpx error (`raise ... from None`); httpx's INFO request log is silenced.
   - Messages to family carry metadata and scam type/level only; logs never carry chat ids.
+- Rides go through `RideProvider` (`app/services/ride/provider.py`: `search_places`, `quote`, `book`; `SimRideProvider` in `simulator.py`, `get_ride_provider()`). Routes get it with `Depends(get_ride_provider)`; the test `client` fixture overrides it with `FakeRideProvider` (`tests/fakes.py`), and the `rides` fixture hands a test its own to set places and errors.
+  - Errors: `RideRequestRefusedError` (the provider refused, `code` from its error body) and `RideProviderUnavailableError` (no usable answer: asking again is safe). Neither carries a query or coordinates; never log them.
+  - Services map them to a tool `status` with a speakable message; only the agent's own mistakes (unknown option number, booking too soon) are HTTP errors.
+  - Rows whose order matters to the call (`ride_quotes.created_at`, `ride_bookings.created_at`) take their time from the service's clock, not `now()`: PostgreSQL's `now()` is the transaction's start, the same for every row of a test. Tests age a quote with an `update(...)`, or use the `no_confirm_wait` fixture.
 - Background jobs (pattern: `app/services/memory/job.py`):
   - A status column marks the queued work.
   - The job is registered in `app/core/scheduler.py` (APScheduler, started in the FastAPI lifespan; `SCHEDULER_ENABLED=false` turns it off).
@@ -89,7 +93,7 @@
 
 ## File organization
 
-- `backend/app/api/` — routes (`web/`, `dograh/`, `webhooks/`).
+- `backend/app/api/` — routes (`web/`, `dograh/`, `webhooks/`). Dograh tools resolve their caller with `resolve_call` (`app/api/dograh/session.py`).
 - `backend/app/core/` — `config` (settings), `db` (async engine, `get_db()` / `DbSession`), `auth` (Clerk JWT, `CurrentUser`, `require_role`, `FamilyUser`), `dograh_auth` (`require_dograh_key`), `errors` (`AppError`, error shape).
 - `backend/app/services/` — business modules.
 - `backend/app/models/`, `backend/app/schemas/` — ORM models, Pydantic schemas.

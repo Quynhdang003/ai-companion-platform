@@ -1,7 +1,7 @@
 """Pre-call hook: identify the caller by number and open the call's session (flow B).
 
 Runs before the agent speaks (Dograh waits up to 10s, our target is < 500ms): indexed
-lookups only (caller, then the ACTIVE caller's memories), no LLM calls.
+lookups only (caller, then the ACTIVE caller's memories and last ride), no LLM calls.
 """
 
 import uuid
@@ -14,6 +14,7 @@ from app.schemas.dograh import CallerStatus, CallInbound, InitialContext
 from app.services.identity import call_sessions
 from app.services.identity.phone import InvalidPhoneError, normalize_vn_phone
 from app.services.memory.context import memory_context
+from app.services.ride.history import last_ride
 
 
 async def build_context(db: AsyncSession, call: CallInbound) -> InitialContext:
@@ -49,6 +50,7 @@ async def build_context(db: AsyncSession, call: CallInbound) -> InitialContext:
             preferred_name=elder.preferred_name or elder.full_name,
             memory_summary=memory.summary,
             frequent_places=memory.frequent_places,
+            last_ride=await last_ride(db, elder.id),
         )
     # PENDING_VERIFICATION: before consent the agent only learns who registered the number.
     return InitialContext(

@@ -4,13 +4,22 @@ import asyncio
 import hashlib
 import math
 import random
+import uuid
 from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, ValidationError
 
 from app.llm.client import EmbedTask, LLMError, SchemaT
 from app.llm.embeddings import EMBEDDING_DIMS
+from app.models import RideStatus, RideType
 from app.services.notification.telegram import TelegramUpdate
+from app.services.ride.provider import (
+    GeoPoint,
+    ProviderBooking,
+    ProviderPlace,
+    ProviderQuote,
+)
 
 
 def fake_vector(text: str) -> list[float]:
@@ -114,3 +123,67 @@ def private_message(update_id: int, chat_id: int, text: str) -> TelegramUpdate:
             "message": {"chat": {"id": chat_id, "type": "private"}, "text": text},
         }
     )
+
+
+class FakeRideProvider:
+    """`RideProvider` in memory, recording every call.
+
+    `places` answer any search; `pickup_eta_s = None` means no driver near; set `surge`.
+    Put an exception in `errors["search_places" | "quote" | "book"]` to make that call
+    fail (remove it to let it work again). A quote is booked once: booking it again returns
+    the same booking, like the simulator.
+    """
+
+    TRIP_S = 799
+    DISTANCE_M = 4_132
+
+    def __init__(self) -> None:
+        self.places: list[ProviderPlace] = []
+        self.price_vnd = 72_000
+        self.pickup_eta_s: int | None = 283
+        self.surge = False
+        self.errors: dict[str, Exception] = {}
+        self.searches: list[tuple[str, int]] = []
+        self.quotes: list[tuple[RideType, GeoPoint, GeoPoint]] = []
+        self.booked: list[str] = []
+        self._bookings: dict[str, ProviderBooking] = {}
+
+    def _maybe_fail(self, method: str) -> None:
+        if method in self.errors:
+            raise self.errors[method]
+
+    async def search_places(self, query: str, limit: int) -> list[ProviderPlace]:
+        self.searches.append((query, limit))
+        self._maybe_fail("search_places")
+        return self.places[:limit]
+
+    async def quote(
+        self, ride_type: RideType, pickup: GeoPoint, destination: GeoPoint
+    ) -> ProviderQuote:
+        self.quotes.append((ride_type, pickup, destination))
+        self._maybe_fail("quote")
+        return ProviderQuote(
+            id=f"quote-{uuid.uuid4().hex[:8]}",
+            ride_type=ride_type,
+            price_vnd=self.price_vnd,
+            distance_m=self.DISTANCE_M,
+            duration_s=self.TRIP_S,
+            pickup_eta_s=self.pickup_eta_s,
+            surge=self.surge,
+            expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+
+    async def book(self, quote_id: str) -> ProviderBooking:
+        self.booked.append(quote_id)
+        self._maybe_fail("book")
+        if quote_id not in self._bookings:
+            eta = self.pickup_eta_s
+            self._bookings[quote_id] = ProviderBooking(
+                id=f"booking-{uuid.uuid4().hex[:8]}",
+                quote_id=quote_id,
+                status=RideStatus.REQUESTED,
+                driver=None,
+                pickup_eta_s=eta,
+                dropoff_eta_s=None if eta is None else eta + self.TRIP_S,
+            )
+        return self._bookings[quote_id]

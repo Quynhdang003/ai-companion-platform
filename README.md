@@ -82,7 +82,8 @@ cd backend && uv run python -m scripts.seed_kb
 # Sample scam patterns (backend/data/scam_patterns, one file per scam type; same rules)
 cd backend && uv run python -m scripts.seed_scam_patterns
 
-# Ride simulator -> http://localhost:8001/health (state in ride-sim/ride_sim.db;
+# Ride simulator -> http://localhost:8001/health (the backend's ride tools book through it,
+# RIDE_SIM_BASE_URL; state in ride-sim/ride_sim.db;
 # TIME_SCALE=30 in ride-sim/.env makes rides 30 times faster)
 cd ride-sim && uv run fastapi dev app/main.py --port 8001
 

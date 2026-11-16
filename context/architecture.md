@@ -31,7 +31,7 @@
 
 ## Storage model
 
-- **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs (one per call session: duration, disposition, processed transcript + recording link for consented callers, memory extraction status), memories (per elder: category, subject, one short Vietnamese sentence, importance, mention count, vector; extracted from transcripts by a background job), KB documents (full text kept for re-indexing) and their chunks (≤ 800 chars, accent-free tsvector, trigram index, vector), scam patterns (scam type, title, ≤ 800-char script of what the scammer says and asks, accent-free tsvector of title + text, vector; one search unit each, no chunks), scam events (ACTIVE elders' medium and high risks from the in-call check: call session, elder, scam type, level, signal codes, who decided, family alert status `pending`/`sent`/`failed`/`skipped` with attempts and sent time; one row per call and type; never the caller's words), Telegram links (per family user: chat id once connected, hashed one-time connect token with expiry), reminders, ride bookings.
+- **PostgreSQL**: users (role + display name/email synced from the Clerk webhook), elders, family links, link requests, call sessions, call logs (one per call session: duration, disposition, processed transcript + recording link for consented callers, memory extraction status), memories (per elder: category, subject, one short Vietnamese sentence, importance, mention count, vector; extracted from transcripts by a background job), KB documents (full text kept for re-indexing) and their chunks (≤ 800 chars, accent-free tsvector, trigram index, vector), scam patterns (scam type, title, ≤ 800-char script of what the scammer says and asks, accent-free tsvector of title + text, vector; one search unit each, no chunks), scam events (ACTIVE elders' medium and high risks from the in-call check: call session, elder, scam type, level, signal codes, who decided, family alert status `pending`/`sent`/`failed`/`skipped` with attempts and sent time; one row per call and type; never the caller's words), Telegram links (per family user: chat id once connected, hashed one-time connect token with expiry), reminders, rides: place options offered during a call (numbered within the call, with coordinates), quotes read out during a call (provider quote id, price, wait, expiry) and ride bookings (ACTIVE elders only: one per quote, provider booking id, status as last seen, driver once known).
 - **Dograh**: recordings and raw transcripts (backend stores URLs + processed transcript), in Dograh's own Postgres + MinIO; never shared with the app database.
 - Conversation content (transcripts, memories) is read only by backend jobs and the AI (pre-call hook, tools); no web route returns it.
 - **Clerk**: credentials and sessions only; business data stays in PostgreSQL.
@@ -48,11 +48,11 @@
 
 ## Invariants
 
-1. The LLM never supplies `elder_id`, phone numbers or user identifiers; identity comes only from `session_token`.
+1. The LLM never supplies `elder_id`, phone numbers or user identifiers; identity comes only from `session_token`. Nor coordinates, prices or provider ids: ride tools take option numbers scoped to the call and a ride type.
 2. Dograh-facing endpoints require API key; web endpoints require Clerk JWT + `elder_family` check.
 3. Pre-call hook stays < 500ms and always returns valid JSON; no LLM calls in it.
 4. Post-call work (memory extraction, scam analysis, embeddings) runs async, never blocks webhook response: the webhook only stores a status (e.g. `call_logs.memory_status = pending`) that an APScheduler job picks up.
-5. Sensitive tools (`book_ride`, `cancel_ride`, `contact_family`, profile changes) execute only after explicit verbal confirmation.
+5. Sensitive tools (`book_ride`, `cancel_ride`, `contact_family`, profile changes) execute only after explicit verbal confirmation. The backend backs the prompt up where it can: `book_ride` books only a quote old enough to have been read out (`RIDE_CONFIRM_MIN_SECONDS`).
 6. All LLM structured output is validated with Pydantic before storage or action.
 7. Phone numbers are stored only in E.164; one `elder` per number.
 8. Embedding model and dimensions are fixed; changing them requires full re-index.

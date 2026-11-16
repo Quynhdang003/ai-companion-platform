@@ -46,13 +46,14 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
 
   | `caller_status` | Keys |
   |---|---|
-  | `active` | `session_token`, `caller_status`, `is_registered: true`, `full_name`, `preferred_name` (falls back to `full_name`), `memory_summary`, `frequent_places` |
+  | `active` | `session_token`, `caller_status`, `is_registered: true`, `full_name`, `preferred_name` (falls back to `full_name`), `memory_summary`, `frequent_places`, `last_ride` |
   | `pending_consent` | `session_token`, `caller_status`, `is_registered: true`, `registered_by` (owner's name, omitted if not synced) |
   | `unknown` (unregistered, blocked, invalid or empty number) | `session_token`, `caller_status`, `is_registered: false` |
 
   - `memory_summary`: up to 8 of the elder's non-place memories (most important, then most recent) as whole sentences, ≤ 600 characters.
   - `frequent_places`: up to 5 place memories, most mentioned first, as `subject: content` joined by `; `.
   - Both are omitted while the elder has no such memories. No LLM call in the hook.
+  - `last_ride`: the elder's latest ride not cancelled, e.g. "Từ Ngõ 12 Phố Láng Hạ đến Bệnh viện Bạch Mai, xe bốn chỗ, ngày 16/11" (date in Vietnam time); omitted before the first ride.
 
 - `POST /tools/confirm-activation` `{session_token}` → 200 `{status: "activated" | "already_active", message, preferred_name}`.
   - Errors: 401 `invalid_session` (unknown or expired token), 404 `not_registered` (unknown or blocked caller).
@@ -72,6 +73,29 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
   - `message`: templated speakable Vietnamese (`app/services/scam/warnings.py`), the agent says it as is. `high` / `medium`: "rất có thể là lừa đảo" / "có dấu hiệu lừa đảo" + what to do + one piece of advice for the type. `low` / `none`: be careful / no sign found. It never promises a family alert.
   - Any caller with a live session gets the warning. Only an ACTIVE elder's `medium` or `high` risk is stored (`scam_events`: type, level, signal codes, who decided; one row per call and type, the level only goes up). The first time it becomes `high`, `alert_status = pending`: the alert job (`app/services/notification/scam_alerts.py`, every `ALERT_JOB_INTERVAL_SECONDS`) sends it to the Telegram chat of every family member linked to the elder who connected one (`sent`); nobody connected or older than 1 h → `skipped`; every send failing → retried 30 s apart, then `failed` after 5.
   - Errors: 401 `invalid_session`, 422 `validation_error` (missing, empty or blank `situation`).
+
+- Ride tools (flow C, `app/api/dograh/ride_tools.py`): ACTIVE elders only. Places are named by option numbers (`ref`) from `search_location`, and bookings by ride type: coordinates, prices and provider ids never come from the LLM. Every outcome the caller should hear is a 200 with a `status` and a speakable `message` (`app/services/ride/messages.py`) the agent says as is; HTTP errors are for what the agent got wrong.
+  - Errors of all three: 401 `invalid_session`; 403 `not_active` (pending consent, blocked or unknown caller: nothing searched or stored); 422 `validation_error`.
+  - The ride provider is the simulator (`RIDE_SIM_BASE_URL`), waited for up to `RIDE_PROVIDER_TIMEOUT_SECONDS` (7). No answer in time, or an unexpected one → `status: "unavailable"`, never an HTTP error.
+
+- `POST /tools/search-location` `{session_token, query}` → 200 `{status, message, options: [{ref, name, address}]}`.
+  - `query` (1–200 chars, not blank): the place as the caller said it; never logged or stored.
+  - Places of the elder's earlier rides whose name and address hold every word of the query (diacritics ignored, "Hà Nội" ignored as a phrase) answer alone, at once. Otherwise the provider's places (the simulator: built-in Hanoi places at once, Photon in a few seconds).
+  - Up to 3 options, stored for the call and numbered from 1 in the order offered; later searches in the call go on counting, so earlier numbers stay valid.
+  - `status`: `found`; `not_found` (`options: []`); `unavailable`.
+
+- `POST /tools/get-ride-quote` `{session_token, pickup_ref, destination_ref, ride_type}` → 200 `{status, message, ride_type, price_vnd, pickup_minutes, trip_minutes, surge}`.
+  - `pickup_ref`, `destination_ref`: option numbers of this call (≥ 1). `ride_type`: `bike` | `car4` | `car7`.
+  - `quoted`: stored as the call's latest quote of that type; `message` says type, places, price ("72 nghìn đồng"), trip and wait (whole minutes, rounded up), "Giá lúc này đang cao hơn bình thường." when `surge`, and asks "Bác có đồng ý đặt xe không ạ?".
+  - Otherwise nothing is stored and the price fields are null: `no_driver` (no driver of that type near the pickup), `out_of_area`, `too_short` (pickup and destination about the same place), `unavailable`.
+  - Errors: 404 `unknown_place` (no option with that number in this call).
+
+- `POST /tools/book-ride` `{session_token, ride_type}` → 200 `{status, message, ride_type, pickup_minutes}`.
+  - Books the call's latest quote of `ride_type`: the price just read out for the type the caller agreed to.
+  - Errors: 409 `confirmation_required` when that quote is younger than `RIDE_CONFIRM_MIN_SECONDS` (3): a quote and a booking in the same agent turn mean the price wasn't read out and agreed to. Nothing is sent to the provider; `message` asks for the caller's agreement.
+  - `booked`: stored (`ride_bookings`); `message` says it's booked and, when the provider just booked it, where and in how long the car comes (`pickup_minutes`). Booking the same quote again returns the same ride without asking the provider.
+  - `no_quote` (nothing of that type quoted in this call), `quote_expired` (5 min, or the provider lost it: quote again), `no_driver`, `unavailable`.
+  - After `unavailable` asking again is safe: the provider books a quote at most once and answers with that booking.
 
 - `POST /hooks/call-ended` `{workflow_run_id, duration_seconds?, disposition?, transcript_url?, recording_url?}` → 200 `{received: true}`. Dograh's end-of-call Webhook node; values are strings, `""` = not sent, `duration_seconds` is rounded to whole seconds.
   - Upserts one `call_logs` row for the run's `call_session` (Dograh retries deliveries).
