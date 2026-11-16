@@ -70,6 +70,19 @@ def test_built_in_search_needs_every_word_of_the_query() -> None:
     assert places.search("chợ Hôm Đồng", 5) == []
     assert places.search("phố Huế", 5) == []
     assert places.search("Hà Nội", 5) == []
+
+
+def test_ha_noi_is_ignored_only_as_a_phrase() -> None:
+    places = _builtin(
+        {"name": "Bệnh viện Đa khoa Đống Đa"},
+        {"name": "Bệnh viện Tim Hà Nội"},
+        {"name": "Bến xe Hà Đông"},
+    )
+
+    # "Hà" alone is part of a name: "Hà Đông" isn't "Đống Đa".
+    assert _names(places.search("hà đông", 5)) == ["Bến xe Hà Đông"]
+    assert _names(places.search("bệnh viện tim", 5)) == ["Bệnh viện Tim Hà Nội"]
+    assert _names(places.search("Đống Đa Hà Nội", 5)) == ["Bệnh viện Đa khoa Đống Đa"]
     assert places.search("", 5) == []
 
 

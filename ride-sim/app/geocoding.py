@@ -25,8 +25,9 @@ _PLACES_FILE = Path(__file__).parent / "data" / "hanoi_places.json"
 _HANOI_CENTRE = Point(21.0285, 105.8542)
 # Two results closer than this are the same place for a rider (a building and its gate).
 SAME_PLACE_M = 150
-# Words a caller may add to any place in Hanoi: they needn't be in its name.
-_CITY_WORDS = frozenset({"ha", "noi"})
+# "Hà Nội" can be added to any place in Hanoi, or left out: it never counts as a word of
+# a name. Only as a phrase: alone, "hà" is part of names like "Hà Đông".
+_CITY_PHRASE = re.compile(r"\bha noi\b")
 # OpenStreetMap objects that aren't somewhere to be picked up or dropped off.
 _SKIPPED_KEYS = frozenset({"boundary"})
 _SKIPPED_TAGS = frozenset({("highway", "bus_stop"), ("highway", "motorway"), ("highway", "trunk")})
@@ -63,6 +64,11 @@ def words(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", fold(text))
 
 
+def name_words(text: str) -> frozenset[str]:
+    """The words a place name is matched on: without diacritics, without "Hà Nội"."""
+    return frozenset(words(_CITY_PHRASE.sub(" ", " ".join(words(text)))))
+
+
 @dataclass(frozen=True)
 class _KnownPlace:
     place: Place
@@ -83,7 +89,7 @@ class BuiltinPlaces:
                     source="builtin",
                 ),
                 variants=tuple(
-                    frozenset(words(name)) for name in (entry["name"], *entry.get("aliases", ()))
+                    name_words(name) for name in (entry["name"], *entry.get("aliases", ()))
                 ),
             )
             for entry in entries
@@ -100,17 +106,15 @@ class BuiltinPlaces:
     def search(self, query: str, limit: int) -> list[Place]:
         """Places whose name (or an alias) has every word of the query, closest name first.
 
-        Diacritics and word order don't matter; "hà nội" added to a name is ignored.
+        Diacritics and word order don't matter; "Hà Nội" in the query or the name is ignored.
         """
-        asked = set(words(query))
+        asked = name_words(query)
+        if not asked:
+            return []
         scored = []
         for index, known in enumerate(self._known):
             extra = min(
-                (
-                    len(variant - asked)
-                    for variant in known.variants
-                    if asked & variant and asked - variant <= _CITY_WORDS
-                ),
+                (len(variant - asked) for variant in known.variants if asked <= variant),
                 default=None,
             )
             if extra is not None:
