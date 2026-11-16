@@ -10,6 +10,15 @@ Spec-driven, small increments. Context files (`project-overview.md`, `architectu
 - Prefer small, verifiable steps over large speculative changes.
 - Don't mix unrelated system boundaries (`backend/`, `ride-sim/`, `frontend/`, Dograh config) in one step.
 
+## Working sessions
+
+- A session may run several units back to back (user decision, 2026-11-16): finish, verify and commit one unit, then start the next one in the planned order without waiting to be told.
+- Units don't merge: each keeps its own scope, its checks ("Before moving to the next unit"), its tracker row and its own commit (`<ID>: summary`). Commits stay local; push and pull requests only when asked.
+- Stop and report when:
+  - a step needs the user (Dograh UI or voice calls, a real key or account, a product decision missing from the context files);
+  - a check fails and the fix isn't clear;
+  - a group of units sharing one boundary is done (e.g. the two `ride-sim` units).
+
 ## When to split work
 
 Split a step if it mixes:

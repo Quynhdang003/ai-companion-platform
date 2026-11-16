@@ -58,7 +58,7 @@ Update after every meaningful implementation change.
 
 ## Next
 
-In this order, one unit at a time (about 36 h left). Each unit gets its own detailed plan when it starts.
+In this order (about 36 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
 
 Rides (criterion 6), branch `feat/ride-booking`:
 
