@@ -2,14 +2,15 @@ import { Badge } from "@/components/ui/badge";
 import type { ElderStatus, LinkRequestStatus } from "@/lib/api/schemas";
 import { cn } from "@/lib/utils";
 
-const tones = {
+/** Soft fill + text of each status tone (tokens from `ui-context.md`). */
+export const toneClasses = {
   warning: "bg-warning-soft text-warning-text",
   success: "bg-success-soft text-success-text",
   error: "bg-error-soft text-error-text",
   muted: "bg-muted text-muted-foreground",
 } as const;
 
-export type Tone = keyof typeof tones;
+export type Tone = keyof typeof toneClasses;
 
 const elderStatus: Record<ElderStatus, { label: string; tone: Tone }> = {
   PENDING_VERIFICATION: { label: "Chờ cuộc gọi đầu tiên", tone: "warning" },
@@ -26,7 +27,7 @@ const requestStatus: Record<LinkRequestStatus, { label: string; tone: Tone }> = 
 export function StatusBadge({ label, tone }: { label: string; tone: Tone }) {
   // Badge defaults to 12px text; body text here never goes below 14px.
   return (
-    <Badge className={cn("h-7 rounded-full px-3 text-sm", tones[tone])}>
+    <Badge className={cn("h-7 rounded-full px-3 text-sm", toneClasses[tone])}>
       {label}
     </Badge>
   );

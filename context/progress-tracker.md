@@ -56,6 +56,7 @@ Update after every meaningful implementation change.
 | `RIDE-02` | Tools `get_ride_status`, `cancel_ride`; ride sync job; cancel reason and sync time (`092895d242f7`) | 645 tests (36 new). Real backend (throwaway DB, sync every 3 s) + real ride-sim at x30: status read out from looking for a driver to arrived in 38 s; a ride nobody asked about stored `COMPLETED` by the job; `driver_cancels` → driver cancelled message 3 s after booking; cancel, cancel again, cancel on board refused; `timeout` → status and cancel unavailable in 7.1 s, also while the job hits the same timeout |
 | `RIDE-03` | Ride sharing choice (`set_ride_sharing`, asked after the first booking), family ride updates on Telegram within it (`049aa92d4462`) | 667 tests (22 new). Real backend (throwaway DB, jobs on) + real ride-sim at x30 + a local fake Bot API: first booking asks; nothing sent for 5 s without an answer, `status` → booked sent 4 s later, then on board and arrived, no places; `details` → places and car + plate; `none` while on board → arrived skipped |
 | `ACT-01a` | `GET /api/elders/{id}` (profile + activity counts) and `/calls` (time, duration, scam alerts, paged); linked family only | 680 tests (13 new): owner and viewer see it, strangers, pending requesters and unknown ids 404, admins 403; calls from the consent call on only; no transcript, recording or signal codes in the body |
+| `ACT-01b` | `/dashboard/elders/[id]`: profile, activity tiles, paged call list with scam alert tags; elder cards link to it. **Criterion 7 done** | Lint + build. Prod build + backend (dev DB, no jobs) + Clerk dev, headless Chrome: owner opens the card, 24 visible calls (declined pre-consent call hidden), 20 + 4 over two pages, alert tags, no transcript text; pending elder explains why empty; another family user and a malformed id get the not-found card; no overflow at 1440/390, no console errors. Test users and data removed |
 
 ## In progress
 
@@ -63,7 +64,9 @@ Update after every meaningful implementation change.
 
 ## Next
 
-In this order (about 15 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+In this order (about 11 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+
+Branches: `feat/act-01-call-activity` (criterion 7, done) is stacked on `feat/ride-booking`, which holds the Week 4 plan: merge rides first, or rebase it onto `main` with that plan.
 
 Rides (criterion 6), branch `feat/ride-booking`:
 
@@ -71,10 +74,6 @@ Rides (criterion 6), branch `feat/ride-booking`:
   - Tool timeouts above the backend's 7 s provider wait (`search_location` can take ~6 s on public Photon for an address the simulator doesn't know), with a `delayed` filler, like `check_scam`.
   - Prompt: "same as last time" → search the names in `last_ride`; read every quote; call `book_ride` with the type the caller agreed to, only after a clear yes; on 409 `confirmation_required`, ask and wait.
   - Sharing: when `ask_sharing`, the question is in `message`; a plain yes → `status`, `details` only when the elder asks for places or the car, no → `none`. "Đừng báo nữa" or a change in any call → `set_ride_sharing` after confirming.
-
-Call activity (criterion 7), branch `feat/act-01-call-activity`:
-
-- `ACT-01b` (frontend): `/dashboard/elders/[id]` (profile card, call list, scam alerts with a risk badge), linked from the elder cards → criterion 7.
 
 Admin KB (criterion 8), branch `feat/kb-01-admin-kb`:
 
@@ -148,6 +147,7 @@ Closing:
 - Signed-in checks without a browser: Clerk Backend API (`CLERK_SECRET_KEY`) `sessions.createSession({userId})` → `sessions.getToken(id)` → request the frontend with `Authorization: Bearer <jwt>` (`clerkMiddleware` accepts header tokens); revoke the session after. Users created in Clerk get role `family` in the DB until the webhook delivers `user.updated`, so admin tests need the webhook (ngrok) or a manual DB role update. Dev-only: a non-admin opening `/admin` logs "Could not validate `instant`" (the layout redirect stops the child page from rendering); harmless.
 
 - Browser E2E (used in REG-01b): run a prod frontend build against the real backend + Clerk dev. Sign test users in via Clerk sign-in tokens in headless Chrome. Sync their names/emails by delivering signed Clerk webhooks locally (`user.created`/`user.updated` signed with `CLERK_WEBHOOK_SECRET` the way `svix_headers` in `backend/tests/conftest.py` does, POSTed to `/webhooks/clerk`). Delete the test users and their data afterwards.
+  - Next to a running dev frontend: build with `NEXT_PUBLIC_API_BASE_URL` set to the test backend (inlined at build time; `next build` and `next dev` keep separate output, so the dev server is untouched), start it on another port with `node node_modules/next/dist/bin/next start -p 3001` (PowerShell's Start-Process can't run `npx`), and add that origin to the test backend's `CLERK_AUTHORIZED_PARTIES` (the JWT `azp`). Rebuild without the override afterwards. Headless Chrome is driven over the DevTools protocol with the backend venv's `websockets`.
 
 - Dograh infra: `DOGRAH_JWT_SECRET` missing from `infra/.env` makes every `docker compose` command fail, even `up -d postgres`. The `dograh-api` image has no `curl`/`wget`; check from inside it with `python -c "import urllib.request ..."`. Docker Desktop forwards `host.docker.internal` to the host's loopback, so `fastapi dev` (127.0.0.1) is reachable; on Linux `host-gateway` is the bridge IP, so the backend must listen on `0.0.0.0` (firewall port 8000) — not yet tested on Linux. `Error connecting to cloudflared` warnings in `dograh-api` logs are expected: the upstream quick tunnel (public URL for telephony webhooks) is left out. Dograh still looks up `cloudflared` on every health check, and a slow failing DNS lookup (~4s) made the UI show "Backend connection failed". Compose maps `cloudflared` to 127.0.0.1 so it fails instantly. This machine also has an old standalone `dograh` compose project (containers `dograh-*` + `minio`, volumes `dograh_*`); unused, and its ports clash if started.
 

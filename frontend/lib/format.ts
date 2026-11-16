@@ -28,3 +28,18 @@ const timeFormatter = new Intl.DateTimeFormat("vi-VN", {
 export function formatTime(iso: string): string {
   return timeFormatter.format(new Date(iso));
 }
+
+/** Seconds → `45 giây`, `3 phút 5 giây`, `1 giờ 2 phút`. */
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds} giây`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    const rest = seconds % 60;
+    return rest ? `${minutes} phút ${rest} giây` : `${minutes} phút`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return restMinutes ? `${hours} giờ ${restMinutes} phút` : `${hours} giờ`;
+}

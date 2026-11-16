@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  callPageSchema,
+  elderDetailSchema,
   elderSchema,
   errorBodySchema,
   incomingRequestSchema,
@@ -79,6 +81,20 @@ export function createApiClient(getToken: GetToken) {
   return {
     getMe: () => request(getToken, "/api/me", userSchema),
     listElders: () => request(getToken, "/api/elders", z.array(elderSchema)),
+    getElder: (id: string) =>
+      request(
+        getToken,
+        `/api/elders/${encodeURIComponent(id)}`,
+        elderDetailSchema,
+      ),
+    listElderCalls: (id: string, before?: string) => {
+      const query = before ? `?before=${encodeURIComponent(before)}` : "";
+      return request(
+        getToken,
+        `/api/elders/${encodeURIComponent(id)}/calls${query}`,
+        callPageSchema,
+      );
+    },
     createElder: (body: ElderCreate) =>
       request(getToken, "/api/elders", registrationSchema, {
         method: "POST",

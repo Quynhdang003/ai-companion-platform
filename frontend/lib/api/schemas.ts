@@ -106,3 +106,53 @@ export const telegramLinkSchema = z.object({
   expires_at: timestamp,
 });
 export type TelegramLink = z.infer<typeof telegramLinkSchema>;
+
+/** `GET /api/elders/{id}`: profile and call activity counts. */
+export const elderDetailSchema = elderSchema.extend({
+  consent_at: timestamp.nullable(),
+  activity: z.object({
+    calls_7d: z.number().int(),
+    calls_30d: z.number().int(),
+    scam_alerts_30d: z.number().int(),
+    last_call_at: timestamp.nullable(),
+  }),
+});
+export type ElderDetail = z.infer<typeof elderDetailSchema>;
+
+export const scamTypeSchema = z.enum([
+  "police_impersonation",
+  "bank_impersonation",
+  "relative_impersonation",
+  "investment",
+  "health_product",
+  "resort_contract",
+  "fake_charity",
+  "other",
+]);
+export type ScamType = z.infer<typeof scamTypeSchema>;
+
+export const riskLevelSchema = z.enum(["none", "low", "medium", "high"]);
+export type RiskLevel = z.infer<typeof riskLevelSchema>;
+
+/** A call's metadata: never anything said in it. */
+export const callSchema = z.object({
+  id: z.uuid(),
+  started_at: timestamp,
+  // Null while the call is on, or if its end was never reported.
+  duration_seconds: z.number().int().nullable(),
+  scam_alerts: z.array(
+    z.object({
+      scam_type: scamTypeSchema,
+      risk_level: riskLevelSchema,
+      created_at: timestamp,
+    }),
+  ),
+});
+export type Call = z.infer<typeof callSchema>;
+
+/** `GET /api/elders/{id}/calls`: newest first; `next_before` pages on, null on the last. */
+export const callPageSchema = z.object({
+  calls: z.array(callSchema),
+  next_before: timestamp.nullable(),
+});
+export type CallPage = z.infer<typeof callPageSchema>;
