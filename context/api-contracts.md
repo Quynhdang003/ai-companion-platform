@@ -22,6 +22,8 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
 | `GET /api/me` | | 200 `{id, clerk_user_id, role}` | |
 | `POST /api/elders` `{full_name, phone, preferred_name?}` | F | 201 `{result: "created", elder}`; 202 `{result: "link_requested"}` (number taken: request sent to the owner, no elder data; repeat while pending is a no-op) | 409 `already_linked`, 422 `invalid_phone` |
 | `GET /api/elders` | F | 200 `[{id, full_name, preferred_name, phone_e164, status, my_role, created_at}]` | |
+| `GET /api/elders/{id}` | F | 200 the elder as in the list + `consent_at` + `activity: {calls_7d, calls_30d, scam_alerts_30d, last_call_at}` | 404 `not_found` (not linked to the user, a pending link request included, or no such elder) |
+| `GET /api/elders/{id}/calls?limit=&before=` | F | 200 `{calls: [{id, started_at, duration_seconds, scam_alerts: [{scam_type, risk_level, created_at}]}], next_before}`, newest first | 404 `not_found` (as above) |
 | `GET /api/link-requests/incoming` | F | 200 pending requests on elders I own: `[{id, elder: {id, full_name}, requester: {display_name, email}, created_at}]` | |
 | `GET /api/link-requests/outgoing` | F | 200 requests I sent: `[{id, phone_e164, status, elder_full_name (approved only), created_at, decided_at}]` | |
 | `POST /api/link-requests/{id}/approve` | F | 200 `{id, status, decided_at}`; requester becomes `viewer` | 404 `not_found` (missing or not owner), 409 `already_decided` |
@@ -29,6 +31,13 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
 | `GET /api/telegram` | F | 200 `{enabled, connected, linked_at}`: `enabled` = Telegram is set up on the server | |
 | `POST /api/telegram/link` | F | 200 `{url, expires_at}`: `https://t.me/<bot>?start=<token>`, one-time, `TELEGRAM_LINK_TTL_MINUTES` (15); replaces any unused link, a connected chat stays until the new link is used | 500 `telegram_not_configured` |
 | `DELETE /api/telegram` | F | 200 `{enabled, connected: false, linked_at: null}`; no more alerts, unused link dropped; repeatable | |
+
+Call activity (`app/services/conversation/activity.py`): metadata only, never transcripts, recordings, memories or scam signal codes.
+
+- Calls shown: the elder's, from the call in which they consented on (the latest call that started before `consent_at`). Before consent, or calls before the consent call (declined ones included), nothing, also after consent. Unknown callers' calls never.
+- `duration_seconds` is null while a call is on, or if Dograh never reported its end. `scam_alerts`: the call's medium and high scam events, first warned first.
+- Pages: `limit` 1–50 (default 20); `before` is a time with a zone, the `next_before` of the previous page (null on the last).
+- `activity`: visible calls in the last 7 and 30 days, scam events in the last 30 days, time of the last visible call.
 
 Telegram connect: opening the link sends `/start <token>` to the bot from the user's chat. A polling job (`getUpdates`, every `TELEGRAM_POLL_INTERVAL_SECONDS`) links that chat if the token is live (private chats only) and replies in Vietnamese (connected / link no longer valid / help). The website polls `GET /api/telegram` to see it connected.
 
