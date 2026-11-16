@@ -53,22 +53,45 @@ async def sync_document(
 ) -> SyncResult:
     """Create the document with this title, or replace its text and chunks in place.
 
-    Unchanged text and source skip re-embedding (seeding the same files twice costs nothing).
+    Unchanged text skips re-embedding (seeding the same files twice costs nothing).
     """
     document = await db.scalar(select(KbDocument).where(KbDocument.title == title))
     if document is None:
         await add_document(db, llm, title=title, content=content, source=source)
         return SyncResult.CREATED
-    if document.content == content and document.source == source:
-        return SyncResult.UNCHANGED
+    changed = await update_document(db, llm, document, title=title, content=content, source=source)
+    return SyncResult.UPDATED if changed else SyncResult.UNCHANGED
+
+
+async def update_document(
+    db: AsyncSession,
+    llm: LLMClient,
+    document: KbDocument,
+    *,
+    title: str,
+    content: str,
+    source: str | None,
+) -> bool:
+    """Give a document a new title, text and source; False when nothing changed.
+
+    The chunks are rebuilt and re-embedded only when the title or the text changed (the title
+    is part of every chunk's embedding text); a new source alone costs no embedding.
+    """
+    if document.title == title and document.content == content:
+        if document.source == source:
+            return False
+        document.source = source
+        await db.flush()
+        return True
 
     chunks = await _embedded_chunks(llm, title, content)
+    document.title = title
     document.content = content
     document.source = source
     await db.execute(delete(KbChunk).where(KbChunk.document_id == document.id))
     _add_chunks(db, document.id, chunks)
     await db.flush()
-    return SyncResult.UPDATED
+    return True
 
 
 async def _embedded_chunks(

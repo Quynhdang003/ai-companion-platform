@@ -57,6 +57,7 @@ Update after every meaningful implementation change.
 | `RIDE-03` | Ride sharing choice (`set_ride_sharing`, asked after the first booking), family ride updates on Telegram within it (`049aa92d4462`) | 667 tests (22 new). Real backend (throwaway DB, jobs on) + real ride-sim at x30 + a local fake Bot API: first booking asks; nothing sent for 5 s without an answer, `status` → booked sent 4 s later, then on board and arrived, no places; `details` → places and car + plate; `none` while on board → arrived skipped |
 | `ACT-01a` | `GET /api/elders/{id}` (profile + activity counts) and `/calls` (time, duration, scam alerts, paged); linked family only | 680 tests (13 new): owner and viewer see it, strangers, pending requesters and unknown ids 404, admins 403; calls from the consent call on only; no transcript, recording or signal codes in the body |
 | `ACT-01b` | `/dashboard/elders/[id]`: profile, activity tiles, paged call list with scam alert tags; elder cards link to it. **Criterion 7 done** | Lint + build. Prod build + backend (dev DB, no jobs) + Clerk dev, headless Chrome: owner opens the card, 24 visible calls (declined pre-consent call hidden), 20 + 4 over two pages, alert tags, no transcript text; pending elder explains why empty; another family user and a malformed id get the not-found card; no overflow at 1440/390, no console errors. Test users and data removed |
+| `KB-01a` | Admin KB routes `/api/admin/kb/documents` (list with accent-free title search, read, add, edit, delete), embedded on save; `update_document` split out of `sync_document` (a new source alone no longer re-embeds) | 703 tests (23 new): family 403, signed out 401; a saved document answers `search_knowledge` at once, an edit replaces its chunks, a delete removes them; taken title 409 before embedding, also when saved meanwhile (savepoint); embedding errors 503 / no key 500 store nothing and keep the old version |
 
 ## In progress
 
@@ -64,7 +65,7 @@ Update after every meaningful implementation change.
 
 ## Next
 
-In this order (about 11 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+In this order (about 8.5 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
 
 Branches: `feat/act-01-call-activity` (criterion 7, done) is stacked on `feat/ride-booking`, which holds the Week 4 plan: merge rides first, or rebase it onto `main` with that plan.
 
@@ -77,7 +78,6 @@ Rides (criterion 6), branch `feat/ride-booking`:
 
 Admin KB (criterion 8), branch `feat/kb-01-admin-kb`:
 
-- `KB-01a` (backend): admin routes to list, read, add, edit and delete KB documents, embedded and indexed on save (reuses `app/services/rag/ingest.py`).
 - `KB-01b` (frontend): admin KB table with search and add/edit/delete dialogs → criterion 8, checked with an "official hotlines" document.
 
 Closing:
