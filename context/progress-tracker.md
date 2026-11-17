@@ -69,11 +69,34 @@ Update after every meaningful implementation change.
 
 In this order (about 5 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
 
-Everything up to `KB-01b` is on `main` (PRs #6 and #9, 2026-11-18); the Week 4 branches are deleted. Remaining work branches off `main`.
+Everything up to `RIDE-04` is on `main` (PRs #6, #9 and #10, 2026-11-18); the Week 4 branches are deleted. Remaining work branches off `main`.
 
-Rides (criterion 6), branch `feat/ride-04-dograh`:
+Rides (criterion 6), not closed:
 
-- `RIDE-04b` (the user, voice): web call on workflow v23 as the ACTIVE test number, the voice line of `dograh/README.md` "Rides" (cases 1–3, one fault, case 5) → criterion 6. Check that the agent waits for the spoken yes before `book_ride` and `cancel_ride`, and how long the turns feel (it confirms each new place, and often says a short line before a ride tool). The test elder's sharing choice is reset (not chosen), so the first booking asks it.
+- `RIDE-04b` (voice, done 2026-11-18 by the user): three web calls as the ACTIVE elder on workflow v23 (Dograh runs 58–60, ride-sim ×1, no fault).
+  - Passed:
+    - Each place searched and confirmed, the quote said as is.
+    - `book_ride` only after the spoken yes: car4, then bike after "đắt quá" → bike quote.
+    - Sharing asked on the first booking: a misheard answer was asked again, then `status`.
+    - Status read with driver and plate.
+    - Cancel asked first; no tool on "để bác nghĩ đã".
+    - Family Telegram got all 5 updates; the first "booked" was held until the sharing answer.
+  - Failed:
+    - Run 59 ("khỏi báo giá"): in the `get_ride_quote` turn, before the result came back, the agent said a made-up price and asked for agreement, then read the real quote.
+      - Made up: "35.000 đồng, khoảng 15 phút". Real: 21 nghìn, 11 phút.
+      - Nothing was booked (the call ended idle), and `book_ride` books the quoted price anyway.
+      - The prompt rule "no price outside a tool `message`" broke.
+    - Run 58: twice "con xin phép tìm Ga Hà Nội trước nhé" with no tool call. The search started about 50 s later, after two idle prompts.
+    - No fault case by voice.
+  - Cause of both: the Dograh-managed LLM (`default`) speaks a line along with a tool call, and v23's rule against it doesn't stop it.
+- `RIDE-04c` (on hold, user decision 2026-11-18). Needs Dograh access again: a temporary API key, or pasting into the UI.
+  - Prompt v24 with a concrete wrong/right example:
+    - A ride tool turn says nothing before the result.
+    - Never promise a search without calling the tool.
+    - No amount, minutes or plate that isn't in a `message`.
+  - The same line in the `get_ride_quote` description (tool edits need no publish).
+  - Text chat: repeat cases 1 and 6 several times and count preambles and made-up numbers. A prompt lowers the rate; it can't rule it out.
+  - Then voice: case 6 and `price_surge` → criterion 6.
 
 Admin KB (criterion 8), no code left (on `main`):
 
@@ -82,6 +105,7 @@ Admin KB (criterion 8), no code left (on `main`):
 Closing:
 
 - `CHK-02`: re-check all 8 criteria, prune session notes, update the README.
+  - Criterion 4: voice runs 58 and 60 ended with `memory_status = failed` (59 `done`). `call_logs` stores no error; maybe the Gemini daily quota. Find out why.
 
 ## Backlog (unscheduled)
 
@@ -163,7 +187,7 @@ Closing:
 
 - Ride simulator faults: `no_driver` hits the booking, not the quote; `time_scale` changes apply to rides booked afterwards. At ×30 a ride is on board within a few turns of a text chat, too fast to test a cancel: use ×5.
 
-- Dograh runs and tools: tool calls (name, LLM arguments, result, timestamps) are in `workflow_runs.logs -> realtime_feedback_events` (`rtf-function-call-start`/`-end`); text chats leave `logs.conversation` empty (query in `dograh/README.md`). Tools are loaded by UUID at run time, so tool edits need no workflow publish. Descriptions pasted from the JSON exports must drop the JSON escapes (`\"`).
+- Dograh runs and tools: tool calls (name, LLM arguments, result, timestamps) are in `workflow_runs.logs -> realtime_feedback_events` (`rtf-function-call-start`/`-end`); text chats leave `logs.conversation` empty (query in `dograh/README.md`). A voice run's timeline is its `rtf-user-transcription`, `rtf-bot-text` and function-call events, with timestamps and turn numbers. Tools are loaded by UUID at run time, so tool edits need no workflow publish. Descriptions pasted from the JSON exports must drop the JSON escapes (`\"`).
 
 - Scam eval: `scripts.eval_scam` caches classifier verdicts in `backend/.cache/scam_eval/<model>.jsonl` (gitignored), keyed by situation + `PROMPT_VERSION`. The free tier also has a per-minute limit (12 back-to-back calls hit it): calls start 6 s apart, a 429 is retried once after 65 s, and a second 429 (daily quota) stops the run; the next run goes on. The daily quota resets at midnight Pacific time (15:00 in Vietnam, 14:00 during US daylight saving time). Use `--limit N` to keep some daily quota for live call tests. `--rules-only` needs no DB or key. The cache holds the engine's result, not the raw classifier verdict: after a change to how the engine treats a verdict, drop the affected rows from the cache file so they re-run.
 
