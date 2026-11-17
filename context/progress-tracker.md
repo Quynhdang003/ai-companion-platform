@@ -91,9 +91,15 @@ Rides (criterion 6), not closed:
     - Run 58: twice "con xin phép tìm Ga Hà Nội trước nhé" with no tool call. The search started about 50 s later, after two idle prompts.
     - No fault case by voice.
   - Cause of both: the Dograh-managed LLM (`default`) speaks a line along with a tool call, and v23's rule against it doesn't stop it.
-- `RIDE-04d` (the user, voice): web call on workflow v24 as the ACTIVE elder → criterion 6.
-  - Case 6 ("đặt luôn… khỏi báo giá"), then case 9 with the simulator fault `price_surge` (turn it off after).
+- `RIDE-04d` (the user, voice): web calls on workflow v24 as the ACTIVE elder → criterion 6.
   - Pass: in the quote turn the only amount and minutes are the result's `message`, read as is; no "con tìm…" line without a `search_location` start; `book_ride` only after the spoken yes. Check with the timeline query in `dograh/README.md` ("RIDE-04c check").
+  - Case 6 passed (run 68, 2026-11-18, 101 s):
+    - The caller gave no ride type: one question, then bike.
+    - Each place searched in its turn and confirmed; no line said along with any of the 4 ride tool calls (v23 runs 58 and 59: one in every tool turn).
+    - The quote read as is (21 nghìn, 11 phút), no other amount. "Có rẻ hơn không" → no booking, no number made up, asked again.
+    - `book_ride` after "ừ ok" at the quoted price; the family's Telegram got "booked" 6 s later.
+    - Minor: the first search query was "Chợ Hôm 79 Phố Huế", the address taken from `frequent_places`; it found the right place.
+  - Left: case 9, a web call with the simulator fault `price_surge` (turn it off after). The quote must say the price is higher than usual. Then criterion 6 closes.
 
 Closing:
 
