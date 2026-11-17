@@ -4,7 +4,7 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
 
 | Path | What |
 |---|---|
-| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b, ride booking RIDE-04): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. v23 published: same nodes, prompts and edges as this export (v22 was RIDE-04's first round; v23 added the Hanoi-only rule, a place confirmed before quoting, and no "con sẽ tìm…" turn before ride tools). |
+| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b, ride booking RIDE-04): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. This export is v24 (RIDE-04c: a ride tool turn holds only the tool call, with wrong/right examples, and no number that isn't in a tool `message`). v23 stays the published version until v24 is applied ("RIDE-04c check" below). v22 was RIDE-04's first round; v23 added the Hanoi-only rule, a place confirmed before quoting, and no "con sẽ tìm…" turn before ride tools. |
 | `tools/confirm_activation.json` | HTTP tool body for `POST /api/v1/tools/`. |
 | `tools/search_knowledge.json` | HTTP tool body for `POST /api/v1/tools/` (RAG-02b). |
 | `tools/check_scam.json` | HTTP tool body for `POST /api/v1/tools/` (SCAM-04b). Validated with Dograh 1.50.0's `CreateToolRequest`. |
@@ -28,7 +28,8 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
   - Rides (RIDE-04, flow C): only for `active` callers, or a pending caller who just consented in this call. Anyone else hears that rides are for registered, consenting users, and no ride tool runs. Rides leave now: a request for a set time gets no tool call.
     - The agent collects pickup, destination and ride type (xe máy → `bike`, bốn chỗ / taxi / ô tô → `car4`, bảy chỗ → `car7`), one question per turn. "Như lần trước" reuses the places of `{{last_ride | chưa có}}` after the caller confirms them.
     - Rides stay in Hanoi: another province or city → "con chỉ đặt được xe đi trong Hà Nội", no search (the simulator's place search only covers Hanoi, so it would offer unrelated places).
-    - A ride tool is called in the turn its information is complete, never after a "con sẽ tìm…" turn.
+    - A ride tool is called in the turn its information is complete, and that turn holds only the tool call: the delayed message covers a slow tool, and the agent speaks once the result is back (v24). Two wrong examples from voice runs 58 and 59 show what not to do: a search promised without the call, and a made-up price said before the quote's result (left blank in the prompt, so no number is suggested).
+    - Any price, minutes, driver or plate the agent says comes from the `message` of a tool that already answered. `get_ride_quote`'s description says the same.
     - `search_location` once per place: the agent says `message` and waits until the caller confirms the place, picks one or says more; with both places confirmed, `get_ride_quote`. Places confirmed by repeating `last_ride` may be quoted without asking again. Option numbers (`ref`) are never read out.
     - The quote `message` is said as is and ends with "Bác có đồng ý đặt xe không ạ?"; the agent stops there. `book_ride` (the ride type of the agreed quote) only after a clear yes in a later turn, never in the quote's turn. Hesitation or "too expensive" → no booking; another ride type → a new quote and a new yes.
     - Any other outcome: say `message` (or `error.message`). `quote_expired` → quote again and wait for a new yes; `unknown_place` → search again; `unavailable` → no retry in the same turn.
@@ -282,6 +283,24 @@ ORDER BY r.id DESC, e->>'timestamp' LIMIT 30;
 ```
 
 Voice (web call, criterion 6): cases 1–3, one fault (`no_driver` or `price_surge`) and case 5. The agent waits for the spoken yes before `book_ride` and `cancel_ride`, and reads the price and the wait clearly.
+
+**RIDE-04c check** (prompt v24, criterion 6). Voice runs 58 and 59 on v23 failed in two ways: a line promising a search with no tool call, and a made-up price spoken along with `get_ride_quote`. The Dograh-managed LLM (`default`) tends to say a line with every tool call, and Dograh 1.50.0 has no setting that mutes it, so the prompt is the only lever: it lowers the rate, it can't rule it out. `book_ride` still books the quoted price.
+
+1. Apply v24, in the UI or over the API:
+   - UI: open the workflow's Start Call node and paste the prompt from `prompts/start.md` (the text inside the `text` block). Save, then **publish**. In Tools, open `get_ride_quote` and paste its `description` from `tools/get_ride_quote.json`, without the JSON escapes. Tool edits need no publish.
+   - API: `PUT $API/workflow/<id>` with only `{"workflow_definition": ...}` from `workflows/identity-consent.json`, its placeholders replaced by the instance's UUIDs (`GET $API/workflow/fetch/<id>` shows them), then `.../validate` and `.../publish`. `PUT $API/tools/<tool_uuid>` with only `{"description": ...}` from `tools/get_ride_quote.json` (the other fields stay).
+2. Text chat as the ACTIVE elder, ride simulator ×5, no fault: case 1 three times and case 6 three times, each in a new session. Count, per tool turn, any `bot_speech` before `tool_call_started` (a preamble), any turn that says it will search or quote with no tool call, and any amount or minutes not in a tool `message`. Pass: no made-up number, no promise without a call. A short preamble without numbers is noted, not failed.
+3. Voice (web call, the user): case 6, then case 9 (`price_surge`, the quote says the price is higher than usual). Then criterion 6 closes. Check the run's timeline with the query below: in the `get_ride_quote` turn, the only agent line with an amount or minutes is the result's `message`, word for word, and every "con tìm…" line has a `search_location` start next to it.
+
+```sql
+-- Dograh DB: a voice or text run's timeline (caller, agent, tool calls)
+SELECT e->>'timestamp' AS at, e->>'type' AS type,
+       coalesce(e->'payload'->>'text', e->'payload'->>'function_name') AS what
+FROM workflow_runs r, json_array_elements(r.logs->'realtime_feedback_events') e
+WHERE r.id = <run id>
+  AND e->>'type' IN ('rtf-user-transcription', 'rtf-bot-text', 'rtf-function-call-start', 'rtf-function-call-end')
+ORDER BY e->>'timestamp';
+```
 
 **Tool test panel**: it sends preset values exactly as typed and does **not** render `{{initial_context.*}}`. A literal template gets 401 `invalid_session`. To test, call the pre-call hook for a test number and paste the returned `session_token`. Live calls render the preset from the call's `initial_context`.
 

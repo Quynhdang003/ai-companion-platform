@@ -1,6 +1,6 @@
 {
   "name": "get_ride_quote",
-  "description": "Báo giá một chuyến xe đi ngay giữa hai chỗ đã tìm bằng search_location. Gọi khi đã có điểm đón, điểm đến và loại xe; gọi lại để báo giá loại xe khác hoặc khi giá cũ đã hết hạn. Báo giá không đặt xe. Kết quả có status (quoted, no_driver, out_of_area, too_short hoặc unavailable) và message (nói nguyên văn; khi quoted, câu này nêu loại xe, hai chỗ, giá, thời gian và hỏi người gọi có đồng ý đặt xe không).",
+  "description": "Báo giá một chuyến xe đi ngay giữa hai chỗ đã tìm bằng search_location. Gọi khi đã có điểm đón, điểm đến và loại xe; gọi lại để báo giá loại xe khác hoặc khi giá cũ đã hết hạn. Báo giá không đặt xe. Kết quả có status (quoted, no_driver, out_of_area, too_short hoặc unavailable) và message (nói nguyên văn; khi quoted, câu này nêu loại xe, hai chỗ, giá, thời gian và hỏi người gọi có đồng ý đặt xe không). Gọi mà không nói gì trước: giá và thời gian chỉ có trong message của kết quả, chưa có kết quả thì không nói con số nào.",
   "category": "http_api",
   "definition": {
     "schema_version": 1,

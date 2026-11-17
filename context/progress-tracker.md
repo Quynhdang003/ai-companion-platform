@@ -90,14 +90,11 @@ Rides (criterion 6), not closed:
     - Run 58: twice "con xin phép tìm Ga Hà Nội trước nhé" with no tool call. The search started about 50 s later, after two idle prompts.
     - No fault case by voice.
   - Cause of both: the Dograh-managed LLM (`default`) speaks a line along with a tool call, and v23's rule against it doesn't stop it.
-- `RIDE-04c` (on hold, user decision 2026-11-18). Needs Dograh access again: a temporary API key, or pasting into the UI.
-  - Prompt v24 with a concrete wrong/right example:
-    - A ride tool turn says nothing before the result.
-    - Never promise a search without calling the tool.
-    - No amount, minutes or plate that isn't in a `message`.
-  - The same line in the `get_ride_quote` description (tool edits need no publish).
-  - Text chat: repeat cases 1 and 6 several times and count preambles and made-up numbers. A prompt lowers the rate; it can't rule it out.
-  - Then voice: case 6 and `price_surge` → criterion 6.
+- `RIDE-04c` (started 2026-11-18, branch `feat/ride-04c`). Prompt v24 and the new `get_ride_quote` description are in the repo export, valid against Dograh 1.50.0's schemas. v23 is still the published version. Dograh 1.50.0 has no setting that mutes a line said along with a tool call, so the prompt is the only lever.
+  - v24: a ride tool turn holds only the tool call. Two wrong examples from runs 58 and 59 (the made-up numbers left blank, so none is suggested) and one right one. Any amount, minutes, driver or plate must come from a tool `message`.
+  - Waiting for the user: Dograh access to apply v24, a temporary organization API key or pasting into the UI (`dograh/README.md`, "RIDE-04c check").
+  - Then text chat: cases 1 and 6, three new sessions each; count preambles, promises without a call and made-up numbers.
+  - Then voice (the user): case 6 and case 9 (`price_surge`) → criterion 6.
 
 Closing:
 
