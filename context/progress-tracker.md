@@ -61,6 +61,7 @@ Update after every meaningful implementation change.
 | `RIDE-04` | Dograh: six ride tools + prompt rules (workflow v23): search, confirm, quote, yes, book | Text chat as the ACTIVE elder, real backend + ride-sim (×5, ×30) + Telegram, 15 of 16 cases (pending number skipped: the dev DB's only one is real). Each place searched and confirmed, quote said as is, `book_ride` only in the yes turn (no 409); "khỏi báo giá" still quoted; "đắt quá" not booked, then bike quoted and booked; sharing asked on the first booking → `status`, family got all 7 updates (booked, on board, arrived, cancelled), "đừng báo nữa" → `none` after a yes; status read; cancel asked first, none on hesitation; last ride recalled; surge read; `no_driver` on booking → other type quoted; `timeout` → filler, `unavailable` at 7.3 s, no retry; driver cancel reported with a rebook offer; scheduled ride, Hải Phòng and unknown caller: no ride tool. v23 fixed v22's Hải Phòng search and a "con tìm trước nhé" turn without a tool call |
 | `KB-01b` | `/admin` KB page: table with accent-free title search, add/edit dialogs, delete confirm; shadcn `table`, `dialog`, `textarea`, `alert-dialog`; Toaster in the admin layout. Criterion 8 on the web side done; the agent's answer in a text chat is the user's step | Lint + build. Prod build + backend (dev DB, jobs off, real Gemini) + Clerk dev, headless Chrome, 21 checks: empty form and taken title refused in the form; the "Số tổng đài chính thức" document added (indexed in 0.9 s), edited (1.0 s), found by "tong DAI"; a scratch document deleted after a cancelled confirm; no overflow at 1440/390 (dialog fits); family user sent from `/admin` to the dashboard, its token 403 on the admin API. `search_knowledge` with real embeddings: Viettel Post, Vina and Vietcombank questions → the new document first (0.3–1.0 s), ambulance → emergency numbers, gold price → nothing. Test users removed; the hotlines document stays in the dev DB |
 | `KB-01c` | The agent answers from a document an admin added on the website. **Criterion 8 done** | 2026-11-18, the user: text chat "số tổng đài Viettel Post là số mấy" → the agent read 1900 8095 from "Số tổng đài chính thức" |
+| `RIDE-04c` | Prompt v24 + quote tool description: a ride tool turn holds only the call (workflow v24) | 2026-11-18, text chat ×6 as the ACTIVE elder (cases 1 and 6, three sessions each; dev backend + ride-sim): every quote said as is, no made-up number, no promise without a call, no `book_ride`. A line said along with the call in 4 of 18 ride tool turns, all `search_location` in case 6, none with a number (v23 voice run 59: in every tool turn, one with a made-up price). Dograh 1.50.0 has no setting that mutes such a line |
 
 ## In progress
 
@@ -90,11 +91,9 @@ Rides (criterion 6), not closed:
     - Run 58: twice "con xin phép tìm Ga Hà Nội trước nhé" with no tool call. The search started about 50 s later, after two idle prompts.
     - No fault case by voice.
   - Cause of both: the Dograh-managed LLM (`default`) speaks a line along with a tool call, and v23's rule against it doesn't stop it.
-- `RIDE-04c` (started 2026-11-18, branch `feat/ride-04c`). Prompt v24 and the new `get_ride_quote` description are in the repo export, valid against Dograh 1.50.0's schemas. v23 is still the published version. Dograh 1.50.0 has no setting that mutes a line said along with a tool call, so the prompt is the only lever.
-  - v24: a ride tool turn holds only the tool call. Two wrong examples from runs 58 and 59 (the made-up numbers left blank, so none is suggested) and one right one. Any amount, minutes, driver or plate must come from a tool `message`.
-  - Waiting for the user: Dograh access to apply v24, a temporary organization API key or pasting into the UI (`dograh/README.md`, "RIDE-04c check").
-  - Then text chat: cases 1 and 6, three new sessions each; count preambles, promises without a call and made-up numbers.
-  - Then voice (the user): case 6 and case 9 (`price_surge`) → criterion 6.
+- `RIDE-04d` (the user, voice): web call on workflow v24 as the ACTIVE elder → criterion 6.
+  - Case 6 ("đặt luôn… khỏi báo giá"), then case 9 with the simulator fault `price_surge` (turn it off after).
+  - Pass: in the quote turn the only amount and minutes are the result's `message`, read as is; no "con tìm…" line without a `search_location` start; `book_ride` only after the spoken yes. Check with the timeline query in `dograh/README.md` ("RIDE-04c check").
 
 Closing:
 
