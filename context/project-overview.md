@@ -36,9 +36,16 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 
 ### C – Ride booking
 
-1. AI collects pickup, destination, time, ride type (uses memory).
+For `ACTIVE` callers only. Rides leave now: no scheduled pickups.
+
+1. AI collects pickup, destination and ride type (uses memory; "same as last time" reuses the places of the last ride).
 2. `search_location` → `get_ride_quote` → AI reads price/ETA.
-3. User confirms verbally → `book_ride`. Then `get_ride_status` / `cancel_ride`; family notified.
+3. User confirms verbally → `book_ride`. Then `get_ride_status` / `cancel_ride`.
+4. Sharing the ride with family is the elder's choice:
+   - Scopes: `none`, `status` (booked, on the way, arrived, cancelled + time) or `details` (plus pickup, destination and plate number). No live vehicle location.
+   - On the first booking the AI asks whether to tell family and suggests `status`; the choice is stored with its time → `set_ride_sharing`. Not asked yet = nothing shared.
+   - The elder can change or withdraw it by voice in any call; it takes effect at once, also for a ride in progress.
+   - Family members who connected Telegram get ride messages within that scope.
 
 ## Modules
 
@@ -46,9 +53,9 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 - **Memory Manager**: post-call extraction with Gemini JSON output + Pydantic; embedded memories; memory summary served in pre-call hook. Memories are AI-only, never shown to family.
 - **RAG Agent**: KB (elderly support, services, safety, scam knowledge); hybrid search (PG full-text `simple` + `unaccent` + `pg_trgm` + pgvector, RRF).
 - **Scam Risk Engine**: layer 1 rules/keywords; layer 2 Gemini classification with retrieved scam patterns → JSON `{risk_level, scam_type, signals, reason}`.
-- **Task Agent**: tools `search_location`, `get_ride_quote`, `book_ride`, `get_ride_status`, `cancel_ride`, `contact_family`, reminders, weather; `RideProvider` interface → Ride Simulator over REST.
-- **Ride Simulator** (separate FastAPI service): OSRM routing; Nominatim/Photon (or Goong) geocoding; pricing (base + per km + per min by ride type, peak multiplier); fake drivers seeded around Hanoi; state machine `REQUESTED → DRIVER_ASSIGNED → ARRIVING → IN_PROGRESS → COMPLETED/CANCELLED` computed from timestamps; `time_scale`, fixed `seed`, fault injection (no driver, driver cancels, timeout, price surge). API: `POST /quotes`, `POST /bookings`, `GET /bookings/{id}`, `POST /bookings/{id}/cancel`, `GET /places/search`.
-- **Notification Service**: `NotificationChannel` interface; Email (reports) + Telegram Bot (urgent alerts). Messages to family carry call metadata and scam type/level only, never conversation content.
+- **Task Agent**: tools `search_location`, `get_ride_quote`, `book_ride`, `get_ride_status`, `cancel_ride`, `set_ride_sharing`, `contact_family`, reminders, weather; `RideProvider` interface → Ride Simulator over REST.
+- **Ride Simulator** (separate FastAPI service): OSRM routing and Photon geocoding (public servers first, self-hosted at deploy; falls back to straight-line distance and a built-in list of Hanoi places); pricing (base + per km + per min by ride type, peak multiplier); fake drivers seeded around Hanoi; state machine `REQUESTED → DRIVER_ASSIGNED → ARRIVING → IN_PROGRESS → COMPLETED/CANCELLED` computed from timestamps; `time_scale`, fixed `seed`, fault injection (no driver, driver cancels, timeout, price surge). API: `POST /quotes`, `POST /bookings`, `GET /bookings/{id}`, `POST /bookings/{id}/cancel`, `GET /places/search`.
+- **Notification Service**: `NotificationChannel` interface; Email (reports) + Telegram Bot (urgent alerts). Messages to family carry call metadata and scam type/level only, plus ride updates within the scope the elder chose; never conversation content.
 - **Family website**: auth, register elder, manage profile, call activity (frequency, time, duration, scam alerts; no transcripts, summaries or memories), notification settings, web call simulation.
 - **Admin website**: manage KB documents (auto embed/index) and scam patterns.
 
@@ -56,7 +63,7 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 
 **In:** Dograh calls (web-simulated; real telephony if time allows, same AI architecture); all backend modules above; self-built Ride Simulator; family + admin websites; phone-number identity with consent activation.
 
-**Out:** model training/fine-tuning; real ride platforms (Grab, Be, Xanh SM, Uber) and Karhoo Sandbox; real payments, paid subscription (only if time allows); mobile app; Zalo ZNS; Elasticsearch, Vietnamese word segmentation; telecom-level caller ID anti-spoofing (mitigated by verbal confirmation, documented as limitation).
+**Out:** model training/fine-tuning; real ride platforms (Grab, Be, Xanh SM, Uber) and Karhoo Sandbox; real payments, paid subscription (only if time allows); scheduled rides and live vehicle tracking; mobile app; Zalo ZNS; Elasticsearch, Vietnamese word segmentation; telecom-level caller ID anti-spoofing (mitigated by verbal confirmation, documented as limitation).
 
 ## Tech stack
 
@@ -83,7 +90,7 @@ Voice-first AI companion (not a chatbot) for lonely elderly people. Elderly user
 - Never let the LLM supply `elder_id`, phone numbers or user identifiers as tool params; always resolve from `session_token`.
 - Dograh-facing endpoints verify API key; website endpoints verify Clerk JWT and check access via `elder_family`.
 - Pre-call hook: fast (< 500ms), always valid JSON; Dograh greeting needs a fallback for missing variables.
-- Sensitive actions (`book_ride`, `cancel_ride`, `contact_family`, profile changes) require verbal confirmation first.
+- Sensitive actions (`book_ride`, `cancel_ride`, `contact_family`, ride sharing and other profile changes) require verbal confirmation first.
 - Keep `initial_context` minimal; fetch detailed health notes via tools only when needed.
 - Modular plain Python/FastAPI; no Celery, Elasticsearch or LangChain unless necessary.
 

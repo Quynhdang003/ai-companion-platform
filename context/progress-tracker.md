@@ -4,11 +4,16 @@ Update after every meaningful implementation change.
 
 ## Current phase
 
-- Week 3 (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07, Week 2 (memory across calls, knowledge base search) finished 2026-11-09.
+- Week 4, the last (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07, Week 2 (memory across calls, knowledge base search) finished 2026-11-09, Week 3 (scam detection in calls, Telegram alerts to family) finished 2026-11-16.
 
 ## Current goal
 
-- Week 3: scam detection during calls (criterion 5). The agent calls `check_scam` when the caller tells it about a suspicious call or request. A two-layer engine (rules, then Gemini with retrieved scam patterns) returns a spoken warning; on high risk the elder's family gets a Telegram alert (type, level, time only). Reuses the hybrid search helpers (`app/services/rag/search.py`) and the background job pattern (`app/services/memory/job.py`).
+- Week 4: close the three open criteria, then re-check all eight.
+  - Criterion 6: voice ride booking on the self-built simulator (quote → verbal confirmation → book, fault cases), with ride sharing to family under the elder's control.
+  - Criterion 7: family sees call activity for the elders they manage.
+  - Criterion 8: an admin adds a KB document on the website and the AI answers from it.
+- Order: rides first (largest risk: new service, prompt, voice check), then call activity, then admin KB. The three groups don't depend on each other: if rides are blocked (Gemini quota, Dograh), work on another group meanwhile.
+- Reuses the Dograh tool pattern (`app/api/dograh/tools.py`), the background job pattern (`app/services/memory/job.py`), the family send rules (`app/services/notification/scam_alerts.py`) and KB ingest (`app/services/rag/ingest.py`).
 
 ## Completed
 
@@ -45,6 +50,11 @@ Update after every meaningful implementation change.
 | `SCAM-03b` | Live eval of the full engine on all 53 cases (`gemini-3.5-flash-lite`, finished 2026-11-16) | 35/35 high → high with the right type, all 7 types + `other` (rules 22, classifier 13); medium 5/5 after `SCAM-03c` (4/5 before: `suspicious-03` flagged high); low and none 13/13 not warned (low: 2 low, 3 none; none: 8/8); classifier p50 2.1 s, p90 2.9 s, max 3.8 s, 0/31 over the 6 s budget; one transient 503 (`benign-04`) fell back to rules, re-ran fine |
 | `SCAM-03c` | Engine caps a classifier `high` at `medium` when no signal from either layer is a request (`ASK_SIGNALS` in `engine.py`) | 532 tests (cap fires on a fake `high` verdict; a request named by either layer keeps `high`); rules find a request in all 13 classifier-decided high cases, so none can be capped; `suspicious-03` re-run live → medium (this time the classifier itself said medium: it is not stable on this case, the cap is); eval on 53 cases: nothing flagged high or warned beyond its label |
 | `NOTI-02b` | Live check with the real Telegram bot: dashboard connect, then a scam case in text chat → alert on the family's Telegram. **Criterion 5 done** (with `SCAM-03b`: 35/35 high flagged across all 7 types + `other`) | 2026-11-16. Bot token valid, no webhook; connect from the dashboard by the owner of the ACTIVE elder. Text chat, workflow v21 (`caller_number` = the ACTIVE test number): money-sent-by-mistake story with a link → `check_scam` high / other by classifier, warning said, event alert `sent` 5.6 s after the check (Bot API accepted the message). Same session's v20 run as the unknown number: OTP → high / bank by rule, warned, nothing stored, no alert |
+| `SIM-01` | Ride simulator core: quotes, bookings, seeded drivers, timestamp state machine, SQLite store | 66 tests (fake clock, fixed seed); real process at `TIME_SCALE=30`: quote → book → `COMPLETED` after 35 s, re-booking the quote 200, booking kept across a restart |
+| `SIM-02` | Ride simulator maps (OSRM, Photon, built-in places, fallbacks) and four faults via `/sim/config` | 127 tests + 2 `live` (public OSRM and Photon) pass. Real process: OSRM quote Lang Ha → Bach Mai 4.1 km; built-in places < 0.1 s, Photon 4.3–4.7 s then 0 s cached; `no_driver` 409, `driver_cancels` cancelled 2 s after booking at `TIME_SCALE=30`, `timeout` 504 after 4 s, `price_surge` 72k → 130k; map servers unreachable → estimated quote, built-in places only |
+| `RIDE-01` | `RideProvider` + simulator adapter, ride tables (`2743a0704e49`), tools `search_location`, `get_ride_quote`, `book_ride`, `last_ride` in the pre-call hook | 609 tests (77 new). Real backend (throwaway DB) + real ride-sim: built-in place 0.2 s, Photon address 2.5 s, OSRM quote 1.0 s; booking at once 409 `confirmation_required`, after 3.5 s booked, again the same ride; next call `last_ride` set (hook 10 ms) and both places found again from the earlier ride in 0.0 s; `price_surge`, `no_driver`, `timeout` (unavailable after 7 s), same place `too_short`, unknown option 404; pending and unknown callers 403 |
+| `RIDE-02` | Tools `get_ride_status`, `cancel_ride`; ride sync job; cancel reason and sync time (`092895d242f7`) | 645 tests (36 new). Real backend (throwaway DB, sync every 3 s) + real ride-sim at x30: status read out from looking for a driver to arrived in 38 s; a ride nobody asked about stored `COMPLETED` by the job; `driver_cancels` → driver cancelled message 3 s after booking; cancel, cancel again, cancel on board refused; `timeout` → status and cancel unavailable in 7.1 s, also while the job hits the same timeout |
+| `RIDE-03` | Ride sharing choice (`set_ride_sharing`, asked after the first booking), family ride updates on Telegram within it (`049aa92d4462`) | 667 tests (22 new). Real backend (throwaway DB, jobs on) + real ride-sim at x30 + a local fake Bot API: first booking asks; nothing sent for 5 s without an answer, `status` → booked sent 4 s later, then on board and arrived, no places; `details` → places and car + plate; `none` while on board → arrived skipped |
 
 ## In progress
 
@@ -52,26 +62,45 @@ Update after every meaningful implementation change.
 
 ## Next
 
-- Week 3 goal (criterion 5) is done. Not yet planned: criterion 6 (ride booking: `ride-sim` has `/health` only) and criterion 7 (family call activity: `call_logs` are stored, but no web route or dashboard page shows them).
-- `SCAM-05` (if time allows): post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
+In this order (about 18 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+
+Rides (criterion 6), branch `feat/ride-booking`:
+
+- `RIDE-04` (Dograh): the six ride tools + prompt (verbal confirmation before `book_ride`, `cancel_ride` and sharing changes). Text chat, then voice → criterion 6.
+  - Tool timeouts above the backend's 7 s provider wait (`search_location` can take ~6 s on public Photon for an address the simulator doesn't know), with a `delayed` filler, like `check_scam`.
+  - Prompt: "same as last time" → search the names in `last_ride`; read every quote; call `book_ride` with the type the caller agreed to, only after a clear yes; on 409 `confirmation_required`, ask and wait.
+  - Sharing: when `ask_sharing`, the question is in `message`; a plain yes → `status`, `details` only when the elder asks for places or the car, no → `none`. "Đừng báo nữa" or a change in any call → `set_ride_sharing` after confirming.
+
+Call activity (criterion 7), branch `feat/act-01-call-activity`:
+
+- `ACT-01a` (backend): `GET /api/elders/{id}` and `GET /api/elders/{id}/calls` (start time, duration, the call's scam alerts, 7- and 30-day counts). Linked family only, anyone else gets 404; no conversation content.
+- `ACT-01b` (frontend): `/dashboard/elders/[id]` (profile card, call list, scam alerts with a risk badge), linked from the elder cards → criterion 7.
+
+Admin KB (criterion 8), branch `feat/kb-01-admin-kb`:
+
+- `KB-01a` (backend): admin routes to list, read, add, edit and delete KB documents, embedded and indexed on save (reuses `app/services/rag/ingest.py`).
+- `KB-01b` (frontend): admin KB table with search and add/edit/delete dialogs → criterion 8, checked with an "official hotlines" document.
+
+Closing:
+
+- `CHK-02`: re-check all 8 criteria, prune session notes, update the README.
 
 ## Backlog (unscheduled)
 
-- Admin KB page: add and manage KB documents, embedded and indexed on save (the admin half of criterion 8; reuses `app/services/rag/ingest.py`). To be planned.
-- Admin scam patterns page: add and edit patterns per scam type (reuses `sync_patterns` in `app/services/scam/patterns.py`). To be planned with the admin KB page.
-- OSRM service in `infra/docker-compose.yml`, with the ride units.
+- `SCAM-05`: post-call scan of stored transcripts, a safety net for scams the agent didn't check in the call; alerts only if that call has no alert of the same type yet.
+- Admin scam patterns page: add and edit patterns per scam type (reuses `sync_patterns` in `app/services/scam/patterns.py`; same shape as the admin KB page).
+- Deploy: Vercel (frontend) + VPS Docker Compose, with self-hosted OSRM and Photon in `infra/docker-compose.yml` (ride-sim only needs their URLs).
 - Web call simulation page; point `/demo` "Mở trang gọi thử" at it.
 - Public "Tầm nhìn" / "Tài nguyên" pages (waiting for design).
 
 ## Open questions
 
-- Geocoding: self-hosted Nominatim/Photon vs Goong API.
 - Real telephony provider (if time allows) and its caller ID format.
 - Data retention period for transcripts and recordings.
 - Public demo hotline number for `/demo` (depends on real telephony), and whether the footer should name the university.
 - Orphaned elders: if an owner deletes their account, the elder stays but pending link requests have nobody to approve them.
 - Link request notifications: owners only see requests on the dashboard until the Notification Service exists.
-- KB search too loose for hotline questions: in `NOTI-02b`, `search_knowledge` for "số tổng đài Viettel Post" returned the emergency-numbers doc with `found: true`, so the agent could read out an unrelated number. Tighten the thresholds, or add a KB doc on official hotlines?
+- KB search too loose for hotline questions: in `NOTI-02b`, `search_knowledge` for "số tổng đài Viettel Post" returned the emergency-numbers doc with `found: true`, so the agent could read out an unrelated number. Tighten the thresholds, or add a KB doc on official hotlines? Re-checked in `KB-01b`, which adds that doc through the admin page.
 
 ## Architecture decisions
 
@@ -79,6 +108,13 @@ Update after every meaningful implementation change.
 - Elder identity by phone + consent activation on first call: no account needed, records consent.
 - Per-call `session_token` via Preset Parameter: LLM can't spoof identity.
 - Self-built Ride Simulator, no Karhoo: no third-party dependency, full test control.
+- Ride simulator map data from public servers, behind `Router` and `Geocoder` interfaces (user decision, 2026-11-16): the OSRM demo server and public Photon, no setup or API key. Fallbacks keep a demo independent of them: straight-line distance × a factor when OSRM fails, a built-in list of Hanoi places when Photon fails. Only addresses are sent out, never names or phone numbers. Self-hosting both at deploy is a URL change.
+- Place search answers well-known places from the simulator's built-in list (41 places from OpenStreetMap) without asking Photon, and asks Photon only for anything else, with a 6 s timeout and an in-memory cache: public Photon took 3–6 s from here on 2026-11-16 (even its `/status`), so it only serves addresses the list doesn't have. A more precise request ("phố Bạch Mai" instead of "Bạch Mai") reaches Photon.
+- Ride sharing with family is the elder's choice (user decision, 2026-11-16): `none`, `status` (booked, on the way, arrived, cancelled + time) or `details` (plus pickup, destination and plate number). Asked once on the first booking and stored with its time; changed or withdrawn by voice in any call, effective at once, also for a ride in progress. Not asked yet = nothing shared. No live vehicle location.
+- Ride updates for family are queued for every ride and read the elder's choice when sent: a change or a withdrawal applies at once without touching the queue. An update queued before the elder answered the sharing question waits for the answer (15 min at most), so the first ride's "booked" still goes out once they say yes. The driver accepting or arriving isn't sent: four messages per ride at most.
+- `book_ride` takes the ride type the caller agreed to (the plan said no LLM parameter): when several types were quoted and read out, "the latest quote" alone could book the wrong one. A ride type is no identifier, so invariant 1 holds.
+- Ride tools answer every outcome the caller should hear with a 200, a `status` and a speakable message, and keep HTTP errors for the agent's own mistakes (unknown option number, booking too soon): the agent reads `message` either way.
+- Rides leave now, no scheduled pickups: those need timed dispatch in the simulator. Ride tools are for ACTIVE elders only; family sees no rides on the dashboard, only the Telegram messages the elder allowed.
 - Hybrid search in PostgreSQL: no extra infra, tolerant to STT errors.
 - KB search open to every live call, unknown and pending-consent callers included: the KB holds no personal data, and callers can ask about the service before consenting.
 - Embeddings: `gemini-embedding-001` at 768 dims for memories and KB: smaller HNSW index, enough for short Vietnamese text. Changing it means a full re-index.
@@ -124,4 +160,4 @@ Update after every meaningful implementation change.
 
 - Smoke runs with a second backend process: its scheduler works on every row of its database, so against the dev DB it handles the user's own pending work (a NOTI-02 smoke marked a real pending alert `skipped`; restored). Point such runs at a throwaway database, or turn the jobs off. `TELEGRAM_API_BASE_URL` points the bot at a local fake Bot API for end-to-end checks without a real bot.
 
-- Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` to print Vietnamese.
+- Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` (or `-X utf8`) to print Vietnamese. curl in Git Bash sends Vietnamese query strings in the wrong encoding (`--data-urlencode "q=chợ Hôm"` finds nothing): send them from Python or PowerShell, or percent-encode the UTF-8 by hand.

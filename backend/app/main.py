@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.dograh import hooks, tools
+from app.api.dograh import hooks, ride_tools, tools
 from app.api.web import elders, link_requests, me, telegram
 from app.api.webhooks import clerk
 from app.core.config import get_settings
@@ -39,6 +39,7 @@ app.include_router(telegram.router)
 app.include_router(clerk.router)
 app.include_router(hooks.router)
 app.include_router(tools.router)
+app.include_router(ride_tools.router)
 
 
 @app.get("/health")

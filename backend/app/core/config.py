@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     # A connect link works once, within this time.
     telegram_link_ttl_minutes: int = 15
 
+    # Ride provider: the ride simulator (`ride-sim/`) over REST.
+    ride_sim_base_url: str = "http://localhost:8001"
+    # Above the simulator's own place search timeout (6 s on public Photon). The Dograh ride
+    # tools wait longer still (`dograh/tools/`).
+    ride_provider_timeout_seconds: float = 7.0
+    # book_ride refuses a quote younger than this: its price must have been read out and
+    # agreed to first, so a quote and a booking in the same agent turn are refused.
+    ride_confirm_min_seconds: float = 3.0
+
     # Background jobs (APScheduler, started with the app). Tests never start them.
     scheduler_enabled: bool = True
     memory_job_interval_seconds: int = 30
@@ -60,6 +69,8 @@ class Settings(BaseSettings):
     telegram_poll_interval_seconds: int = 3
     # How often pending family scam alerts are sent (both jobs need a Telegram bot token).
     alert_job_interval_seconds: int = 5
+    # How often open rides are read from the ride provider.
+    ride_sync_interval_seconds: int = 10
 
 
 @lru_cache

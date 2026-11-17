@@ -1,0 +1,50 @@
+{
+  "attribution": "Names, addresses and coordinates from OpenStreetMap (looked up through Photon). © OpenStreetMap contributors, ODbL.",
+  "places": [
+    {"name": "Bệnh viện Bạch Mai", "address": "78 Đường Giải Phóng", "lat": 21.00182, "lng": 105.83967},
+    {"name": "Bệnh viện Hữu nghị Việt Đức", "address": "40 Phố Phủ Doãn", "lat": 21.02837, "lng": 105.847},
+    {"name": "Bệnh viện K cơ sở Tân Triều", "address": "30 Đường Cầu Bươu", "lat": 20.96341, "lng": 105.79924},
+    {"name": "Bệnh viện Trung ương Quân đội 108", "address": "1 Phố Trần Hưng Đạo", "lat": 21.01647, "lng": 105.86081},
+    {"name": "Bệnh viện Thanh Nhàn", "address": "42 Phố Thanh Nhàn", "lat": 21.00388, "lng": 105.85932},
+    {"name": "Bệnh viện Đa khoa Xanh Pôn", "address": "12 Phố Chu Văn An", "lat": 21.03127, "lng": 105.83517, "aliases": ["Bệnh viện Saint Paul"]},
+    {"name": "Bệnh viện Lão khoa Trung ương", "address": "1A Phố Phương Mai", "lat": 21.00363, "lng": 105.83959},
+    {"name": "Bệnh viện Hữu Nghị", "address": "1 Đường Trần Khánh Dư", "lat": 21.0155, "lng": 105.86173, "aliases": ["Bệnh viện Việt Xô", "Bệnh viện Hữu nghị Việt Xô"]},
+    {"name": "Bệnh viện E", "address": "87 Đường Trần Cung", "lat": 21.05039, "lng": 105.7885},
+    {"name": "Bệnh viện Tim Hà Nội", "address": "92 Phố Trần Hưng Đạo", "lat": 21.02382, "lng": 105.84391},
+    {"name": "Bệnh viện Mắt Trung ương", "address": "85 Phố Bà Triệu", "lat": 21.01758, "lng": 105.84959},
+    {"name": "Bệnh viện Nhi Trung ương", "address": "18 Ngõ 879 Đường La Thành", "lat": 21.02454, "lng": 105.80813},
+    {"name": "Bệnh viện Phụ sản Hà Nội", "address": "Ngõ 933 Đê La Thành", "lat": 21.02681, "lng": 105.8075},
+    {"name": "Bệnh viện Đại học Y Hà Nội", "address": "1 Phố Tôn Thất Tùng", "lat": 21.00217, "lng": 105.83015},
+    {"name": "Bệnh viện Đa khoa Đống Đa", "address": "Ngõ 180 Phố Nguyễn Lương Bằng", "lat": 21.01568, "lng": 105.82694},
+
+    {"name": "Chợ Đồng Xuân", "address": "Phố Đồng Xuân", "lat": 21.03826, "lng": 105.84967},
+    {"name": "Chợ Hôm", "address": "79 Phố Huế", "lat": 21.01717, "lng": 105.85197},
+    {"name": "Chợ Thành Công", "address": "Phố Thành Công", "lat": 21.02245, "lng": 105.81524},
+    {"name": "Chợ Nghĩa Tân", "address": "Ngõ 24 Phố Nghĩa Tân", "lat": 21.04514, "lng": 105.79421},
+    {"name": "Chợ Hàng Da", "address": "Phố Nguyễn Văn Tố", "lat": 21.03146, "lng": 105.84635},
+    {"name": "Chợ Long Biên", "address": "", "lat": 21.04144, "lng": 105.85099},
+
+    {"name": "Ga Hà Nội", "address": "120 Đường Lê Duẩn", "lat": 21.02421, "lng": 105.84109, "aliases": ["Ga Hàng Cỏ"]},
+    {"name": "Bến xe Mỹ Đình", "address": "20 Đường Phạm Hùng", "lat": 21.02827, "lng": 105.77752},
+    {"name": "Bến xe Giáp Bát", "address": "Đường Giải Phóng", "lat": 20.9803, "lng": 105.84185},
+    {"name": "Bến xe Nước Ngầm", "address": "1 Đường Ngọc Hồi", "lat": 20.9651, "lng": 105.84318},
+    {"name": "Bến xe Gia Lâm", "address": "Phố Ngô Gia Khảm", "lat": 21.04854, "lng": 105.87898},
+    {"name": "Sân bay Quốc tế Nội Bài", "address": "", "lat": 21.21889, "lng": 105.80446},
+
+    {"name": "Hồ Hoàn Kiếm", "address": "", "lat": 21.02883, "lng": 105.85254, "aliases": ["Hồ Gươm", "Bờ Hồ"]},
+    {"name": "Công viên Thống Nhất", "address": "Cổng Đường Lê Duẩn", "lat": 21.01342, "lng": 105.84148},
+    {"name": "Chùa Trấn Quốc", "address": "Đường Thanh Niên", "lat": 21.04788, "lng": 105.83684},
+    {"name": "Chùa Một Cột", "address": "Phố Chùa Một Cột", "lat": 21.03586, "lng": 105.83361},
+    {"name": "Văn Miếu - Quốc Tử Giám", "address": "", "lat": 21.02879, "lng": 105.83595},
+    {"name": "Lăng Chủ tịch Hồ Chí Minh", "address": "1 Đường Hùng Vương", "lat": 21.03678, "lng": 105.83469, "aliases": ["Lăng Bác", "Lăng Hồ Chủ tịch"]},
+    {"name": "Nhà thờ Lớn Hà Nội", "address": "40 Phố Nhà Chung", "lat": 21.02865, "lng": 105.84886},
+    {"name": "Phủ Tây Hồ", "address": "Phố Đặng Thai Mai", "lat": 21.05573, "lng": 105.81964},
+    {"name": "Chùa Quán Sứ", "address": "Phố Quán Sứ", "lat": 21.02447, "lng": 105.84542},
+    {"name": "Chùa Hà", "address": "86 Phố Chùa Hà", "lat": 21.03717, "lng": 105.79518},
+
+    {"name": "Vincom Center Bà Triệu", "address": "191 Phố Bà Triệu", "lat": 21.01119, "lng": 105.84947},
+    {"name": "Times City", "address": "458 Phố Minh Khai", "lat": 20.99497, "lng": 105.8689, "aliases": ["Vinhomes Times City"]},
+    {"name": "Royal City", "address": "72A Đường Nguyễn Trãi", "lat": 21.00217, "lng": 105.81549, "aliases": ["Vinhomes Royal City"]},
+    {"name": "AEON Mall Long Biên", "address": "27 Đường Cổ Linh", "lat": 21.02712, "lng": 105.89996}
+  ]
+}

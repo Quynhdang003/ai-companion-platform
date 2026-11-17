@@ -82,8 +82,13 @@ cd backend && uv run python -m scripts.seed_kb
 # Sample scam patterns (backend/data/scam_patterns, one file per scam type; same rules)
 cd backend && uv run python -m scripts.seed_scam_patterns
 
-# Ride simulator -> http://localhost:8001/health
+# Ride simulator -> http://localhost:8001/health (the backend's ride tools book through it,
+# RIDE_SIM_BASE_URL; state in ride-sim/ride_sim.db;
+# TIME_SCALE=30 in ride-sim/.env makes rides 30 times faster)
 cd ride-sim && uv run fastapi dev app/main.py --port 8001
+
+# Ride simulator faults while it runs (no_driver, driver_cancels, timeout, price_surge; null = off)
+curl -X PATCH localhost:8001/sim/config -H 'Content-Type: application/json' -d '{"fault": "no_driver"}'
 
 # Frontend   -> http://localhost:3000
 cd frontend && npm run dev
@@ -95,5 +100,8 @@ cd frontend && npm run dev
 cd backend  && uv run ruff check . && uv run ruff format --check . && uv run pytest
 cd backend  && uv run alembic current     # DB must be running
 cd ride-sim && uv run ruff check . && uv run ruff format --check . && uv run pytest
+cd ride-sim && uv run pytest -m live       # public OSRM and Photon, network needed
 cd frontend && npm run lint && npm run build
 ```
+
+Map data: routes from OSRM and places from Photon, both on OpenStreetMap data (© OpenStreetMap contributors, ODbL); the built-in Hanoi places in `ride-sim/app/data/hanoi_places.json` come from the same source.

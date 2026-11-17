@@ -13,7 +13,7 @@
 - Pydantic models for all request/response bodies and LLM outputs.
 - Routes stay thin: validate → call service → return. Logic lives in `services/`.
 - External services (Gemini, ride provider, notification channels) behind interfaces (`RideProvider`, `NotificationChannel`, LLM client) for mocking in tests.
-- Async DB access with SQLAlchemy 2; schema changes only via Alembic migrations.
+- Async DB access with SQLAlchemy 2; schema changes only via Alembic migrations (backend; `ride-sim` differs, see below).
 - `pytest` tests for every service; mock external APIs. Tests that call a real external API are marked `live` and skipped by default (`uv run pytest -m live` runs them).
 - LLM calls go through `LLMClient` (`app/llm/client.py`, `get_llm_client()`); services take it as a parameter, tests pass `FakeLLMClient` (`tests/fakes.py`). Routes get it with `Depends(get_llm_client)`; the test `client` fixture overrides it with `FakeLLMClient` (override again in a test for a specific fake).
   - Structured output: `generate_json(prompt, Schema)` returns the validated Pydantic model.
@@ -23,8 +23,13 @@
   - On the real-time call path (Dograh tools), an LLM call runs against a deadline (`asyncio.wait_for`) and any `LLMError` or timeout falls back to a non-LLM answer: the tool never fails because of the LLM (`app/services/scam/engine.py`).
   - Prompts whose results are cached (`scripts.eval_scam`) carry a `PROMPT_VERSION`; bump it on any prompt change.
 - Notifications go through `NotificationChannel` (`app/services/notification/channel.py`: `send(recipient, text)`, plain text). Errors: `NotificationError` (retry later); `RecipientUnreachableError` (e.g. the chat blocked the bot: stop sending to it). Telegram is `TelegramBot` (`telegram.py`, Bot API over httpx); tests use `FakeTelegramBot` (`tests/fakes.py`).
+  - Alert jobs send to an elder's family with `send_to_family` (`app/services/notification/family.py`): every linked member's connected chat once, unreachable chats disconnected, a `Delivery` with the counts the job decides on.
   - Bot API URLs contain the bot token: never log or raise a URL or a chained httpx error (`raise ... from None`); httpx's INFO request log is silenced.
   - Messages to family carry metadata and scam type/level only; logs never carry chat ids.
+- Rides go through `RideProvider` (`app/services/ride/provider.py`: `search_places`, `quote`, `book`; `SimRideProvider` in `simulator.py`, `get_ride_provider()`). Routes get it with `Depends(get_ride_provider)`; the test `client` fixture overrides it with `FakeRideProvider` (`tests/fakes.py`), and the `rides` fixture hands a test its own to set places and errors.
+  - Errors: `RideRequestRefusedError` (the provider refused, `code` from its error body) and `RideProviderUnavailableError` (no usable answer: asking again is safe). Neither carries a query or coordinates; never log them.
+  - Services map them to a tool `status` with a speakable message; only the agent's own mistakes (unknown option number, booking too soon) are HTTP errors.
+  - Rows whose order matters to the call (`ride_quotes.created_at`, `ride_bookings.created_at`) take their time from the service's clock, not `now()`: PostgreSQL's `now()` is the transaction's start, the same for every row of a test. Tests age a quote with an `update(...)`, or use the `no_confirm_wait` fixture.
 - Background jobs (pattern: `app/services/memory/job.py`):
   - A status column marks the queued work.
   - The job is registered in `app/core/scheduler.py` (APScheduler, started in the FastAPI lifespan; `SCHEDULER_ENABLED=false` turns it off).
@@ -33,6 +38,14 @@
   - A job whose failures are worth retrying soon (sends) waits a delay between attempts instead of retrying in the same run (`scam_alerts.py`: `RETRY_DELAY` from `updated_at`).
   - Jobs open sessions with a `SessionFactory` (`app/core/db.py`, default `SessionLocal`); tests pass `same_session(session)` (`tests/conftest.py`).
   - Tests call the per-row function directly with `FakeLLMClient`; the test client never starts the scheduler.
+  - A job that waits on a slow outside service for a row a user request may also touch doesn't hold the row lock meanwhile (`ride/sync.py`): it claims the row (a timestamp) and commits, asks the service, then writes the answer only if the row wasn't read by a request since. A user request never waits behind a slow job.
+- Ride simulator (`ride-sim/app/`):
+  - State lives in SQLite (SQLAlchemy 2 async + aiosqlite). Tables are created at startup, no Alembic: the state is disposable. Any table change bumps `SCHEMA_VERSION` (`app/db.py`, kept in SQLite's `user_version`), and a database of another version is emptied at startup.
+  - Datetime columns use `UtcDateTime` (`app/db.py`): SQLite keeps no time zone.
+  - Nothing reads the system clock or sleeps directly. `create_app(settings, router=, geocoder=, clock=, sleep=)` (`app/main.py`) takes them all; tests pass a `FakeClock`, a `FakeSleep`, a temp database and a fixed seed, and no map servers unless a test passes a fake (`tests/conftest.py`: `make_client`; `FakeGeocoder` in `tests/helpers.py`).
+  - Map servers sit behind `Router` (`app/routing.py`) and `Geocoder` (`app/geocoding.py`) and never fail a request: an error or timeout falls back (straight-line estimate, built-in places or none). Their logs carry neither coordinates nor queries. Tests mock them with httpx `MockTransport`; tests against the real servers are marked `live`.
+  - A booking's status is never stored or updated: `app/state.py` computes it from the booking's timestamps. Anything that changes a ride later (a cancellation, a fault) is a timestamp too.
+  - Errors are raised as `AppError(status, code, message)` with an English message; the backend turns codes into speakable Vietnamese.
 
 ## TypeScript
 
@@ -82,7 +95,7 @@
 
 ## File organization
 
-- `backend/app/api/` — routes (`web/`, `dograh/`, `webhooks/`).
+- `backend/app/api/` — routes (`web/`, `dograh/`, `webhooks/`). Dograh tools resolve their caller with `resolve_call` (`app/api/dograh/session.py`).
 - `backend/app/core/` — `config` (settings), `db` (async engine, `get_db()` / `DbSession`), `auth` (Clerk JWT, `CurrentUser`, `require_role`, `FamilyUser`), `dograh_auth` (`require_dograh_key`), `errors` (`AppError`, error shape).
 - `backend/app/services/` — business modules.
 - `backend/app/models/`, `backend/app/schemas/` — ORM models, Pydantic schemas.

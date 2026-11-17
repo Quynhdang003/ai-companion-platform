@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
+from app.models.ride import RideShareScope
 
 
 class ElderStatus(StrEnum):
@@ -33,4 +34,15 @@ class Elder(TimestampMixin, Base):
         server_default=ElderStatus.PENDING_VERIFICATION.value,
     )
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # What family hears about the elder's rides, as the elder said in a call; None: not asked.
+    ride_share_scope: Mapped[RideShareScope | None] = mapped_column(
+        Enum(
+            RideShareScope,
+            name="ride_share_scope",
+            native_enum=False,
+            create_constraint=True,
+            values_callable=lambda e: [m.value for m in e],
+        )
+    )
+    ride_share_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     profile: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))

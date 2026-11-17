@@ -46,13 +46,14 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
 
   | `caller_status` | Keys |
   |---|---|
-  | `active` | `session_token`, `caller_status`, `is_registered: true`, `full_name`, `preferred_name` (falls back to `full_name`), `memory_summary`, `frequent_places` |
+  | `active` | `session_token`, `caller_status`, `is_registered: true`, `full_name`, `preferred_name` (falls back to `full_name`), `memory_summary`, `frequent_places`, `last_ride` |
   | `pending_consent` | `session_token`, `caller_status`, `is_registered: true`, `registered_by` (owner's name, omitted if not synced) |
   | `unknown` (unregistered, blocked, invalid or empty number) | `session_token`, `caller_status`, `is_registered: false` |
 
   - `memory_summary`: up to 8 of the elder's non-place memories (most important, then most recent) as whole sentences, ≤ 600 characters.
   - `frequent_places`: up to 5 place memories, most mentioned first, as `subject: content` joined by `; `.
   - Both are omitted while the elder has no such memories. No LLM call in the hook.
+  - `last_ride`: the elder's latest ride not cancelled, e.g. "Từ Ngõ 12 Phố Láng Hạ đến Bệnh viện Bạch Mai, xe bốn chỗ, ngày 16/11" (date in Vietnam time); omitted before the first ride.
 
 - `POST /tools/confirm-activation` `{session_token}` → 200 `{status: "activated" | "already_active", message, preferred_name}`.
   - Errors: 401 `invalid_session` (unknown or expired token), 404 `not_registered` (unknown or blocked caller).
@@ -73,6 +74,51 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
   - Any caller with a live session gets the warning. Only an ACTIVE elder's `medium` or `high` risk is stored (`scam_events`: type, level, signal codes, who decided; one row per call and type, the level only goes up). The first time it becomes `high`, `alert_status = pending`: the alert job (`app/services/notification/scam_alerts.py`, every `ALERT_JOB_INTERVAL_SECONDS`) sends it to the Telegram chat of every family member linked to the elder who connected one (`sent`); nobody connected or older than 1 h → `skipped`; every send failing → retried 30 s apart, then `failed` after 5.
   - Errors: 401 `invalid_session`, 422 `validation_error` (missing, empty or blank `situation`).
 
+- Ride tools (flow C, `app/api/dograh/ride_tools.py`): ACTIVE elders only. Places are named by option numbers (`ref`) from `search_location`, and bookings by ride type: coordinates, prices and provider ids never come from the LLM. Every outcome the caller should hear is a 200 with a `status` and a speakable `message` (`app/services/ride/messages.py`) the agent says as is; HTTP errors are for what the agent got wrong.
+  - Errors of all three: 401 `invalid_session`; 403 `not_active` (pending consent, blocked or unknown caller: nothing searched or stored); 422 `validation_error`.
+  - The ride provider is the simulator (`RIDE_SIM_BASE_URL`), waited for up to `RIDE_PROVIDER_TIMEOUT_SECONDS` (7). No answer in time, or an unexpected one → `status: "unavailable"`, never an HTTP error.
+
+- `POST /tools/search-location` `{session_token, query}` → 200 `{status, message, options: [{ref, name, address}]}`.
+  - `query` (1–200 chars, not blank): the place as the caller said it; never logged or stored.
+  - Places of the elder's earlier rides whose name and address hold every word of the query (diacritics ignored, "Hà Nội" ignored as a phrase) answer alone, at once. Otherwise the provider's places (the simulator: built-in Hanoi places at once, Photon in a few seconds).
+  - Up to 3 options, stored for the call and numbered from 1 in the order offered; later searches in the call go on counting, so earlier numbers stay valid.
+  - `status`: `found`; `not_found` (`options: []`); `unavailable`.
+
+- `POST /tools/get-ride-quote` `{session_token, pickup_ref, destination_ref, ride_type}` → 200 `{status, message, ride_type, price_vnd, pickup_minutes, trip_minutes, surge}`.
+  - `pickup_ref`, `destination_ref`: option numbers of this call (≥ 1). `ride_type`: `bike` | `car4` | `car7`.
+  - `quoted`: stored as the call's latest quote of that type; `message` says type, places, price ("72 nghìn đồng"), trip and wait (whole minutes, rounded up), "Giá lúc này đang cao hơn bình thường." when `surge`, and asks "Bác có đồng ý đặt xe không ạ?".
+  - Otherwise nothing is stored and the price fields are null: `no_driver` (no driver of that type near the pickup), `out_of_area`, `too_short` (pickup and destination about the same place), `unavailable`.
+  - Errors: 404 `unknown_place` (no option with that number in this call).
+
+- `POST /tools/book-ride` `{session_token, ride_type}` → 200 `{status, message, ride_type, pickup_minutes}`.
+  - Books the call's latest quote of `ride_type`: the price just read out for the type the caller agreed to.
+  - Errors: 409 `confirmation_required` when that quote is younger than `RIDE_CONFIRM_MIN_SECONDS` (3): a quote and a booking in the same agent turn mean the price wasn't read out and agreed to. Nothing is sent to the provider; `message` asks for the caller's agreement.
+  - `booked`: stored (`ride_bookings`); `message` says it's booked and, when the provider just booked it, where and in how long the car comes (`pickup_minutes`). Booking the same quote again returns the same ride without asking the provider.
+  - `no_quote` (nothing of that type quoted in this call), `quote_expired` (5 min, or the provider lost it: quote again), `no_driver`, `unavailable`.
+  - After `unavailable` asking again is safe: the provider books a quote at most once and answers with that booking.
+  - `ask_sharing: true` when a new booking is the elder's first since they never chose what family hears about rides: `message` ends with "Bác có muốn con báo cho người thân biết khi bác lên xe và khi đến nơi không ạ?" (answer → `set_ride_sharing`).
+
+- `POST /tools/get-ride-status` `{session_token}` → 200 `{status, message, ride_status, pickup_minutes, dropoff_minutes}`.
+  - The elder's current ride: their latest, whichever call booked it; one finished (`COMPLETED`/`CANCELLED`) over 6 h ago is no longer current.
+  - While it isn't finished, it's read from the provider and stored (status, driver, cancel reason). `message` says where it is: looking for a driver; driver's name, car and plate and the wait; arriving (get ready at the pickup); on the way (minutes left); arrived; cancelled (by the elder; by the driver, with an offer to book another; lost: the provider no longer knows it, with an offer to book again).
+  - `status`: `found`; `no_ride` (`ride_status: null`); `unavailable` (the provider didn't answer: `ride_status` as stored, no minutes).
+
+- `POST /tools/cancel-ride` `{session_token}` → 200 `{status, message}`. Call only after the caller confirmed.
+  - Cancels the current ride (as above) for the elder.
+  - `status`: `cancelled`; `already_cancelled` (by the elder before; by the driver or lost: `message` says so); `in_progress` (on board: too late); `completed`; `no_ride`; `unavailable` (nothing changed).
+
+- Ride sync job (`app/services/ride/sync.py`, every `RIDE_SYNC_INTERVAL_SECONDS`, 10): reads every open ride from the provider once per run and stores its status, driver and cancel reason; a ride the provider no longer knows becomes `CANCELLED`, reason `lost`. No answer stops the run until the next.
+
+- `POST /tools/set-ride-sharing` `{session_token, scope}` → 200 `{scope, message}`. Call only after the caller said what family may hear.
+  - `scope`: `none`; `status` (booked, on board, arrived, cancelled, with the time and ride type); `details` (plus pickup, destination and the car once known). Stored on the elder with the time; replaces any earlier choice, in any call.
+  - `message` confirms the choice in speakable Vietnamese. Errors: 401, 403 `not_active`, 422.
+
+- Ride updates to family (`app/services/notification/ride_alerts.py`, every `ALERT_JOB_INTERVAL_SECONDS`, with a Telegram bot token):
+  - Queued for every ride whatever the choice (`ride_notifications`, one per ride and event): booked; on board (`IN_PROGRESS`); arrived (`COMPLETED`); cancelled (by the elder or the driver). The driver's moves and lost rides aren't sent.
+  - The choice is read when sending, so a change applies at once, also mid-ride. Not chosen yet → the update waits up to 15 min for the answer, then `skipped`; `none` → `skipped`.
+  - Sent like scam alerts: to every linked family member's Telegram chat, each at most once; all sends failing → retried 30 s apart, `failed` after 5; nobody connected, elder not ACTIVE, or older than 15 min → `skipped`.
+  - Text: event, the elder's full name, ride type, time (Vietnam), who cancelled; `details` adds pickup, destination and car + plate, `status` ends with a note that only the status is shared. Never anything said in the call.
+
 - `POST /hooks/call-ended` `{workflow_run_id, duration_seconds?, disposition?, transcript_url?, recording_url?}` → 200 `{received: true}`. Dograh's end-of-call Webhook node; values are strings, `""` = not sent, `duration_seconds` is rounded to whole seconds.
   - Upserts one `call_logs` row for the run's `call_session` (Dograh retries deliveries).
   - A run without a call session (its pre-call hook never reached us) is ignored: 200, nothing stored.
@@ -84,6 +130,45 @@ Telegram connect: opening the link sends `/start <token>` to the bot from the us
     - 422 `validation_error`.
     - 422 `invalid_transcript_url` (outside `DOGRAH_BASE_URL`).
     - 503 `transcript_unavailable` (download failed or not a Dograh transcript): nothing stored, Dograh retries.
+
+## Ride Simulator API (`ride-sim`, port 8001)
+
+Called only by the backend's `RideProvider` adapter. No auth: an internal service. Same error body as the backend (422 `validation_error` for an invalid body or query). Coordinates are `{lat, lng}`; prices are VND in whole thousands; durations and ETAs are simulated seconds, and `time_scale` simulated seconds pass per real second.
+
+| Route | Success | Errors |
+|---|---|---|
+| `GET /places/search?q=&limit=` (`q` 1–200 chars, `limit` 1–10, default 5) | 200 `[{name, address, lat, lng, source}]`, best first; `[]` when nothing matches | |
+| `POST /quotes` `{pickup, destination, ride_type}` | 201 quote | 422 `out_of_service_area`, 422 `trip_too_short` |
+| `POST /bookings` `{quote_id}` | 201 booking; 200 with the existing booking when the quote was booked before (safe to retry) | 404 `quote_not_found`, 409 `quote_expired`, 409 `no_driver_available` |
+| `GET /bookings/{id}` | 200 booking | 404 `booking_not_found` |
+| `POST /bookings/{id}/cancel` | 200 booking, now `CANCELLED` with `cancel_reason: "rider"`; repeating it changes nothing | 404 `booking_not_found`, 409 `ride_in_progress`, 409 `ride_completed` |
+| `GET /sim/config` | 200 `{time_scale, fault}` | |
+| `PATCH /sim/config` `{time_scale?, fault?}` | 200 `{time_scale, fault}`: only the fields sent change; `"fault": null` turns it off | |
+
+Under the `timeout` fault, every route above `/sim/config` hangs `FAULT_TIMEOUT_SECONDS` (15), then answers 504 `provider_timeout` having done nothing. `/sim/*` and `/health` never hang.
+
+- `ride_type`: `bike` | `car4` | `car7`. Price = base + per km + per minute (`ride-sim/app/pricing.py`), × 1.3 at peak hours (07:00–09:00 and 17:00–19:30, Vietnam time).
+- Places (`app/geocoding.py`):
+  - A query matching the simulator's built-in list of well-known Hanoi places (hospitals, markets, stations, landmarks; `app/data/hanoi_places.json`) gets only those (`source: "builtin"`), at once.
+  - Anything else goes to Photon (`source: "photon"`, within greater Hanoi, `GEOCODER_TIMEOUT_SECONDS` 6). Its answers are kept in memory, so the same query again is instant.
+  - Photon off, slow or failing → `[]`, never an error. Bus stops, motorways, rail lines and boundaries are dropped; results within 150 m of each other count once.
+  - Matching ignores diacritics, case and word order; "Hà Nội" in the query is ignored. `address` is the street address when known, else `""`.
+- Quote: `{id, ride_type, pickup, destination, distance_m, duration_s, price_vnd, peak, surge, estimated, pickup_eta_s, expires_at}`.
+  - Distance and duration come from OSRM (`ROUTER_TIMEOUT_SECONDS` 2), its duration × 1.8 for Hanoi traffic. `estimated: true`: OSRM was off, slow or failing, and they are a straight-line estimate (× 1.35, at 22 km/h).
+  - `surge: true`: priced × `SURGE_MULTIPLIER` (1.8) under the `price_surge` fault. A quote keeps its price whatever the fault is when it is booked.
+  - `pickup_eta_s`: until the nearest free driver would reach the pickup; `null` when none is within 10 km.
+  - Bookable for `QUOTE_TTL_SECONDS` (300, real seconds). A trip starts and ends in greater Hanoi and is at least 200 m long.
+- Booking: `{id, quote_id, status, ride_type, pickup, destination, distance_m, duration_s, price_vnd, driver, pickup_eta_s, dropoff_eta_s, requested_at, cancelled_at, cancel_reason}`.
+  - `status`: `REQUESTED` → `DRIVER_ASSIGNED` → `ARRIVING` → `IN_PROGRESS` → `COMPLETED`; `CANCELLED` is possible until `IN_PROGRESS`. It isn't stored: it is read off times fixed when the quote is booked (a driver accepts after 20 s; `ARRIVING` starts 120 s before the pickup).
+  - `driver` `{name, vehicle, plate}`: `null` until a driver has accepted. `pickup_eta_s` is `null` once the passenger is on board; `dropoff_eta_s` once the ride is completed or cancelled.
+  - The nearest free driver of the ride type takes the booking and is busy until its drop-off or cancellation. Drivers come from `SEED` (same seed, same drivers) and wait in inner Hanoi, so a pickup at Noi Bai airport finds none.
+  - `cancel_reason`: `rider` (`POST /bookings/{id}/cancel`) or `driver` (`driver_cancels` fault). A cancellation shows only once it has happened.
+- Faults (`fault`, one at a time; `FAULT` at start, then `PATCH /sim/config`). They hit what is quoted or booked while they are on; rides already booked go on.
+  - `no_driver`: quotes as usual, booking → 409 `no_driver_available`. The same quote can be booked once it is off.
+  - `driver_cancels`: a new booking gets a driver, who cancels 45 s (simulated) after accepting, before the pickup.
+  - `timeout`: see above.
+  - `price_surge`: new quotes cost more (`surge: true`).
+- `time_scale` (`TIME_SCALE` at start, then `PATCH /sim/config`) applies to rides booked from then on.
 
 ## Dograh platform contract
 
