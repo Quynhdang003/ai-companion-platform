@@ -55,6 +55,10 @@ Update after every meaningful implementation change.
 | `RIDE-01` | `RideProvider` + simulator adapter, ride tables (`2743a0704e49`), tools `search_location`, `get_ride_quote`, `book_ride`, `last_ride` in the pre-call hook | 609 tests (77 new). Real backend (throwaway DB) + real ride-sim: built-in place 0.2 s, Photon address 2.5 s, OSRM quote 1.0 s; booking at once 409 `confirmation_required`, after 3.5 s booked, again the same ride; next call `last_ride` set (hook 10 ms) and both places found again from the earlier ride in 0.0 s; `price_surge`, `no_driver`, `timeout` (unavailable after 7 s), same place `too_short`, unknown option 404; pending and unknown callers 403 |
 | `RIDE-02` | Tools `get_ride_status`, `cancel_ride`; ride sync job; cancel reason and sync time (`092895d242f7`) | 645 tests (36 new). Real backend (throwaway DB, sync every 3 s) + real ride-sim at x30: status read out from looking for a driver to arrived in 38 s; a ride nobody asked about stored `COMPLETED` by the job; `driver_cancels` → driver cancelled message 3 s after booking; cancel, cancel again, cancel on board refused; `timeout` → status and cancel unavailable in 7.1 s, also while the job hits the same timeout |
 | `RIDE-03` | Ride sharing choice (`set_ride_sharing`, asked after the first booking), family ride updates on Telegram within it (`049aa92d4462`) | 667 tests (22 new). Real backend (throwaway DB, jobs on) + real ride-sim at x30 + a local fake Bot API: first booking asks; nothing sent for 5 s without an answer, `status` → booked sent 4 s later, then on board and arrived, no places; `details` → places and car + plate; `none` while on board → arrived skipped |
+| `ACT-01a` | `GET /api/elders/{id}` (profile + activity counts) and `/calls` (time, duration, scam alerts, paged); linked family only | 680 tests (13 new): owner and viewer see it, strangers, pending requesters and unknown ids 404, admins 403; calls from the consent call on only; no transcript, recording or signal codes in the body |
+| `ACT-01b` | `/dashboard/elders/[id]`: profile, activity tiles, paged call list with scam alert tags; elder cards link to it. **Criterion 7 done** | Lint + build. Prod build + backend (dev DB, no jobs) + Clerk dev, headless Chrome: owner opens the card, 24 visible calls (declined pre-consent call hidden), 20 + 4 over two pages, alert tags, no transcript text; pending elder explains why empty; another family user and a malformed id get the not-found card; no overflow at 1440/390, no console errors. Test users and data removed |
+| `KB-01a` | Admin KB routes `/api/admin/kb/documents` (list with accent-free title search, read, add, edit, delete), embedded on save; `update_document` split out of `sync_document` (a new source alone no longer re-embeds) | 703 tests (23 new): family 403, signed out 401; a saved document answers `search_knowledge` at once, an edit replaces its chunks, a delete removes them; taken title 409 before embedding, also when saved meanwhile (savepoint); embedding errors 503 / no key 500 store nothing and keep the old version |
+| `KB-01b` | `/admin` KB page: table with accent-free title search, add/edit dialogs, delete confirm; shadcn `table`, `dialog`, `textarea`, `alert-dialog`; Toaster in the admin layout. Criterion 8 on the web side done; the agent's answer in a text chat is the user's step | Lint + build. Prod build + backend (dev DB, jobs off, real Gemini) + Clerk dev, headless Chrome, 21 checks: empty form and taken title refused in the form; the "Số tổng đài chính thức" document added (indexed in 0.9 s), edited (1.0 s), found by "tong DAI"; a scratch document deleted after a cancelled confirm; no overflow at 1440/390 (dialog fits); family user sent from `/admin` to the dashboard, its token 403 on the admin API. `search_knowledge` with real embeddings: Viettel Post, Vina and Vietcombank questions → the new document first (0.3–1.0 s), ambulance → emergency numbers, gold price → nothing. Test users removed; the hotlines document stays in the dev DB |
 
 ## In progress
 
@@ -62,7 +66,9 @@ Update after every meaningful implementation change.
 
 ## Next
 
-In this order (about 18 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+In this order (about 5 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+
+Branches, stacked: `feat/ride-booking` (holds the Week 4 plan) ← `feat/act-01-call-activity` (criterion 7, done) ← `feat/kb-01-admin-kb`. Merge them in that order, or rebase each onto `main` with the plan commit.
 
 Rides (criterion 6), branch `feat/ride-booking`:
 
@@ -71,15 +77,9 @@ Rides (criterion 6), branch `feat/ride-booking`:
   - Prompt: "same as last time" → search the names in `last_ride`; read every quote; call `book_ride` with the type the caller agreed to, only after a clear yes; on 409 `confirmation_required`, ask and wait.
   - Sharing: when `ask_sharing`, the question is in `message`; a plain yes → `status`, `details` only when the elder asks for places or the car, no → `none`. "Đừng báo nữa" or a change in any call → `set_ride_sharing` after confirming.
 
-Call activity (criterion 7), branch `feat/act-01-call-activity`:
+Admin KB (criterion 8), branch `feat/kb-01-admin-kb` (stacked on `feat/act-01-call-activity`):
 
-- `ACT-01a` (backend): `GET /api/elders/{id}` and `GET /api/elders/{id}/calls` (start time, duration, the call's scam alerts, 7- and 30-day counts). Linked family only, anyone else gets 404; no conversation content.
-- `ACT-01b` (frontend): `/dashboard/elders/[id]` (profile card, call list, scam alerts with a risk badge), linked from the elder cards → criterion 7.
-
-Admin KB (criterion 8), branch `feat/kb-01-admin-kb`:
-
-- `KB-01a` (backend): admin routes to list, read, add, edit and delete KB documents, embedded and indexed on save (reuses `app/services/rag/ingest.py`).
-- `KB-01b` (frontend): admin KB table with search and add/edit/delete dialogs → criterion 8, checked with an "official hotlines" document.
+- Text chat (the user, Dograh): ask "số tổng đài Viettel Post là số mấy" → the agent reads 1900 8095 from "Số tổng đài chính thức" (in the dev DB since `KB-01b`) → criterion 8 done.
 
 Closing:
 
@@ -100,7 +100,6 @@ Closing:
 - Public demo hotline number for `/demo` (depends on real telephony), and whether the footer should name the university.
 - Orphaned elders: if an owner deletes their account, the elder stays but pending link requests have nobody to approve them.
 - Link request notifications: owners only see requests on the dashboard until the Notification Service exists.
-- KB search too loose for hotline questions: in `NOTI-02b`, `search_knowledge` for "số tổng đài Viettel Post" returned the emergency-numbers doc with `found: true`, so the agent could read out an unrelated number. Tighten the thresholds, or add a KB doc on official hotlines? Re-checked in `KB-01b`, which adds that doc through the admin page.
 
 ## Architecture decisions
 
@@ -112,10 +111,13 @@ Closing:
 - Place search answers well-known places from the simulator's built-in list (41 places from OpenStreetMap) without asking Photon, and asks Photon only for anything else, with a 6 s timeout and an in-memory cache: public Photon took 3–6 s from here on 2026-11-16 (even its `/status`), so it only serves addresses the list doesn't have. A more precise request ("phố Bạch Mai" instead of "Bạch Mai") reaches Photon.
 - Ride sharing with family is the elder's choice (user decision, 2026-11-16): `none`, `status` (booked, on the way, arrived, cancelled + time) or `details` (plus pickup, destination and plate number). Asked once on the first booking and stored with its time; changed or withdrawn by voice in any call, effective at once, also for a ride in progress. Not asked yet = nothing shared. No live vehicle location.
 - Ride updates for family are queued for every ride and read the elder's choice when sent: a change or a withdrawal applies at once without touching the queue. An update queued before the elder answered the sharing question waits for the answer (15 min at most), so the first ride's "booked" still goes out once they say yes. The driver accepting or arriving isn't sent: four messages per ride at most.
+- Family call activity starts at the call in which the elder consented (user decision, 2026-11-16): a caller who never agreed shows nothing, and calls before agreeing (declined ones included) stay hidden after consent too. The consent call is found as the elder's latest call started before `consent_at`, so no column records it.
 - `book_ride` takes the ride type the caller agreed to (the plan said no LLM parameter): when several types were quoted and read out, "the latest quote" alone could book the wrong one. A ride type is no identifier, so invariant 1 holds.
 - Ride tools answer every outcome the caller should hear with a 200, a `status` and a speakable message, and keep HTTP errors for the agent's own mistakes (unknown option number, booking too soon): the agent reads `message` either way.
 - Rides leave now, no scheduled pickups: those need timed dispatch in the simulator. Ride tools are for ACTIVE elders only; family sees no rides on the dashboard, only the Telegram messages the elder allowed.
 - Hybrid search in PostgreSQL: no extra infra, tolerant to STT errors.
+- KB search thresholds stay as they are (open question closed in `KB-01b`): "số tổng đài Viettel Post" returned the emergency-numbers document only because the KB had no hotlines document. With one added on the admin page, hotline questions rank it first with real embeddings; the other documents still follow in the top 3, and the agent reads the first. A question about reporting scams ranks the service intro first and the hotlines (156) second.
+- Admin KB saves embed within the request (documents are short, ≤ 20 000 characters, one embedding request, ~1 s): the document is searchable when the page says it is saved, and a failed embedding stores nothing.
 - KB search open to every live call, unknown and pending-consent callers included: the KB holds no personal data, and callers can ask about the service before consenting.
 - Embeddings: `gemini-embedding-001` at 768 dims for memories and KB: smaller HNSW index, enough for short Vietnamese text. Changing it means a full re-index.
 - Telegram for urgent alerts, Email for reports: email too slow for scam alerts.
@@ -146,7 +148,8 @@ Closing:
 
 - Signed-in checks without a browser: Clerk Backend API (`CLERK_SECRET_KEY`) `sessions.createSession({userId})` → `sessions.getToken(id)` → request the frontend with `Authorization: Bearer <jwt>` (`clerkMiddleware` accepts header tokens); revoke the session after. Users created in Clerk get role `family` in the DB until the webhook delivers `user.updated`, so admin tests need the webhook (ngrok) or a manual DB role update. Dev-only: a non-admin opening `/admin` logs "Could not validate `instant`" (the layout redirect stops the child page from rendering); harmless.
 
-- Browser E2E (used in REG-01b): run a prod frontend build against the real backend + Clerk dev. Sign test users in via Clerk sign-in tokens in headless Chrome. Sync their names/emails by delivering signed Clerk webhooks locally (`user.created`/`user.updated` signed with `CLERK_WEBHOOK_SECRET` the way `svix_headers` in `backend/tests/conftest.py` does, POSTed to `/webhooks/clerk`). Delete the test users and their data afterwards.
+- Browser E2E (used in REG-01b): run a prod frontend build against the real backend + Clerk dev. Sign test users in via Clerk sign-in tokens in headless Chrome. Sync their names/emails by delivering signed Clerk webhooks locally (`user.created`/`user.updated` signed with `CLERK_WEBHOOK_SECRET` the way `svix_headers` in `backend/tests/conftest.py` does, POSTed to `/webhooks/clerk`). Delete the test users and their data afterwards. Admin users: create the Clerk user with `public_metadata.role = admin` and insert the DB row with role `admin` (no webhook needed).
+  - Next to a running dev frontend: build with `NEXT_PUBLIC_API_BASE_URL` set to the test backend (inlined at build time; `next build` and `next dev` keep separate output, so the dev server is untouched), start it on another port with `node node_modules/next/dist/bin/next start -p 3001` (PowerShell's Start-Process can't run `npx`), and add that origin to the test backend's `CLERK_AUTHORIZED_PARTIES` (the JWT `azp`). Rebuild without the override afterwards. Headless Chrome is driven over the DevTools protocol with the backend venv's `websockets`.
 
 - Dograh infra: `DOGRAH_JWT_SECRET` missing from `infra/.env` makes every `docker compose` command fail, even `up -d postgres`. The `dograh-api` image has no `curl`/`wget`; check from inside it with `python -c "import urllib.request ..."`. Docker Desktop forwards `host.docker.internal` to the host's loopback, so `fastapi dev` (127.0.0.1) is reachable; on Linux `host-gateway` is the bridge IP, so the backend must listen on `0.0.0.0` (firewall port 8000) — not yet tested on Linux. `Error connecting to cloudflared` warnings in `dograh-api` logs are expected: the upstream quick tunnel (public URL for telephony webhooks) is left out. Dograh still looks up `cloudflared` on every health check, and a slow failing DNS lookup (~4s) made the UI show "Backend connection failed". Compose maps `cloudflared` to 127.0.0.1 so it fails instantly. This machine also has an old standalone `dograh` compose project (containers `dograh-*` + `minio`, volumes `dograh_*`); unused, and its ports clash if started.
 

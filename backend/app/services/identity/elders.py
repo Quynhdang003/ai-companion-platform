@@ -1,5 +1,6 @@
 """Elder registration by family members and activation on the first call (flow A)."""
 
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -83,6 +84,24 @@ async def list_for_user(db: AsyncSession, user: User) -> list[tuple[Elder, Famil
         .order_by(ElderFamily.created_at)
     )
     return list(result.all())
+
+
+async def linked_elder(
+    db: AsyncSession, user: User, elder_id: uuid.UUID
+) -> tuple[Elder, FamilyRole] | None:
+    """The elder and the user's role, if the user is linked to it (owner or viewer).
+
+    None for an elder the user isn't linked to, a pending link request included: callers
+    answer 404 either way, so nobody learns which ids exist.
+    """
+    row = (
+        await db.execute(
+            select(Elder, ElderFamily.role)
+            .join(ElderFamily, ElderFamily.elder_id == Elder.id)
+            .where(Elder.id == elder_id, ElderFamily.user_id == user.id)
+        )
+    ).first()
+    return None if row is None else (row[0], row[1])
 
 
 class ActivationOutcome(StrEnum):

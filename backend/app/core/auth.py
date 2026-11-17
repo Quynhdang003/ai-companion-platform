@@ -98,3 +98,5 @@ def require_role(*roles: UserRole) -> Callable[[User], Awaitable[User]]:
 
 # Family-only web routes; admins manage the knowledge base, not elders.
 FamilyUser = Annotated[User, Depends(require_role(UserRole.FAMILY))]
+# Admin-only web routes (`/api/admin/*`).
+AdminUser = Annotated[User, Depends(require_role(UserRole.ADMIN))]

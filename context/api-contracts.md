@@ -7,9 +7,9 @@ Read before adding, changing or calling any backend route. Behavior only; implem
 - Success returns the resource or result body. Errors return `{"error": {"code", "message"}}` with the HTTP status (`app/core/errors.py`). Invalid body or parameters → 422 `validation_error`; other framework errors → `http_error`.
 - Auth dependencies:
   - `CurrentUser` (`app/core/auth.py`): Clerk session JWT as `Authorization: Bearer`; missing/invalid → 401 `unauthorized`. A verified user missing from the DB is created as `family`.
-  - `require_role(*roles)` (`app/core/auth.py`): wrong role → 403 `forbidden`. `FamilyUser` = `require_role(family)`.
+  - `require_role(*roles)` (`app/core/auth.py`): wrong role → 403 `forbidden`. `FamilyUser` = `require_role(family)`, `AdminUser` = `require_role(admin)`.
   - `require_dograh_key` (`app/core/dograh_auth.py`): `Authorization: Bearer <DOGRAH_API_KEY>`; missing/wrong → 401 `unauthorized`.
-- Required env unset → 500 `*_not_configured`: `auth_not_configured` (`CLERK_ISSUER`), `webhook_not_configured` (`CLERK_WEBHOOK_SECRET`), `dograh_not_configured` (`DOGRAH_API_KEY`), `telegram_not_configured` (`TELEGRAM_BOT_TOKEN` or `TELEGRAM_BOT_USERNAME`).
+- Required env unset → 500 `*_not_configured`: `auth_not_configured` (`CLERK_ISSUER`), `webhook_not_configured` (`CLERK_WEBHOOK_SECRET`), `dograh_not_configured` (`DOGRAH_API_KEY`), `telegram_not_configured` (`TELEGRAM_BOT_TOKEN` or `TELEGRAM_BOT_USERNAME`), `llm_not_configured` (`GEMINI_API_KEY`, admin KB saves).
 - Phone input is normalized with `normalize_vn_phone` (VN mobile + landline); responses carry E.164.
 - CORS: browser origins from `CORS_ORIGINS`.
 
@@ -22,6 +22,8 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
 | `GET /api/me` | | 200 `{id, clerk_user_id, role}` | |
 | `POST /api/elders` `{full_name, phone, preferred_name?}` | F | 201 `{result: "created", elder}`; 202 `{result: "link_requested"}` (number taken: request sent to the owner, no elder data; repeat while pending is a no-op) | 409 `already_linked`, 422 `invalid_phone` |
 | `GET /api/elders` | F | 200 `[{id, full_name, preferred_name, phone_e164, status, my_role, created_at}]` | |
+| `GET /api/elders/{id}` | F | 200 the elder as in the list + `consent_at` + `activity: {calls_7d, calls_30d, scam_alerts_30d, last_call_at}` | 404 `not_found` (not linked to the user, a pending link request included, or no such elder) |
+| `GET /api/elders/{id}/calls?limit=&before=` | F | 200 `{calls: [{id, started_at, duration_seconds, scam_alerts: [{scam_type, risk_level, created_at}]}], next_before}`, newest first | 404 `not_found` (as above) |
 | `GET /api/link-requests/incoming` | F | 200 pending requests on elders I own: `[{id, elder: {id, full_name}, requester: {display_name, email}, created_at}]` | |
 | `GET /api/link-requests/outgoing` | F | 200 requests I sent: `[{id, phone_e164, status, elder_full_name (approved only), created_at, decided_at}]` | |
 | `POST /api/link-requests/{id}/approve` | F | 200 `{id, status, decided_at}`; requester becomes `viewer` | 404 `not_found` (missing or not owner), 409 `already_decided` |
@@ -30,7 +32,29 @@ F = family-only (`FamilyUser`); others accept any role (`CurrentUser`).
 | `POST /api/telegram/link` | F | 200 `{url, expires_at}`: `https://t.me/<bot>?start=<token>`, one-time, `TELEGRAM_LINK_TTL_MINUTES` (15); replaces any unused link, a connected chat stays until the new link is used | 500 `telegram_not_configured` |
 | `DELETE /api/telegram` | F | 200 `{enabled, connected: false, linked_at: null}`; no more alerts, unused link dropped; repeatable | |
 
+Call activity (`app/services/conversation/activity.py`): metadata only, never transcripts, recordings, memories or scam signal codes.
+
+- Calls shown: the elder's, from the call in which they consented on (the latest call that started before `consent_at`). Before consent, or calls before the consent call (declined ones included), nothing, also after consent. Unknown callers' calls never.
+- `duration_seconds` is null while a call is on, or if Dograh never reported its end. `scam_alerts`: the call's medium and high scam events, first warned first.
+- Pages: `limit` 1–50 (default 20); `before` is a time with a zone, the `next_before` of the previous page (null on the last).
+- `activity`: visible calls in the last 7 and 30 days, scam events in the last 30 days, time of the last visible call.
+
 Telegram connect: opening the link sends `/start <token>` to the bot from the user's chat. A polling job (`getUpdates`, every `TELEGRAM_POLL_INTERVAL_SECONDS`) links that chat if the token is live (private chats only) and replies in Vietnamese (connected / link no longer valid / help). The website polls `GET /api/telegram` to see it connected.
+
+### Admin: knowledge base (`AdminUser` = `require_role(admin)`; family → 403 `forbidden`)
+
+A document is `{id, title, source, content, chunk_count, created_at, updated_at}`; the list leaves out `content`. `chunk_count` = searchable pieces it was indexed as.
+
+| Route | Success | Errors |
+|---|---|---|
+| `GET /api/admin/kb/documents?q=` | 200 every document without `content` (the KB is small, no paging), most recently changed first; `q` (≤ 200) matches anywhere in the title, accents and case ignored | |
+| `GET /api/admin/kb/documents/{id}` | 200 the document | 404 `not_found` |
+| `POST /api/admin/kb/documents` `{title, content, source?}` | 201 the document, chunked and embedded: the next `search_knowledge` finds it | 409 `title_taken`, 422 `empty_document`, 503 `embedding_unavailable`, 500 `llm_not_configured` |
+| `PUT /api/admin/kb/documents/{id}` `{title, content, source?}` | 200 the document; re-chunked and re-embedded only when the title or the text changed | 404 `not_found`, then as `POST` |
+| `DELETE /api/admin/kb/documents/{id}` | 204, its chunks go with it | 404 `not_found` |
+
+- Body: `title` 1–200, `content` 1–20 000 (about 25 chunks, one embedding request), `source` ≤ 500 (file name or URL, for admins; blank → null); all trimmed. Blank or too long → 422 `validation_error`.
+- Saving embeds within the request, before anything is written: on any error nothing is stored and an edited document keeps its old version. `title_taken` (exact title, another document) is checked before embedding; `embedding_unavailable` covers Gemini errors and rate limits (try again later); `llm_not_configured` = no `GEMINI_API_KEY`. `empty_document` (text the chunker finds nothing in) can't happen with non-blank text today.
 
 ## Clerk webhook
 

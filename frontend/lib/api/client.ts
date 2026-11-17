@@ -1,8 +1,12 @@
 import { z } from "zod";
 import {
+  callPageSchema,
+  elderDetailSchema,
   elderSchema,
   errorBodySchema,
   incomingRequestSchema,
+  kbDocumentSchema,
+  kbDocumentSummarySchema,
   linkRequestDecisionSchema,
   outgoingRequestSchema,
   registrationSchema,
@@ -10,6 +14,7 @@ import {
   telegramStatusSchema,
   userSchema,
   type ElderCreate,
+  type KbDocumentInput,
 } from "./schemas";
 
 /** Non-2xx backend response, carrying the backend's error `code`. */
@@ -35,7 +40,13 @@ function apiBaseUrl(): string {
   return url.replace(/\/+$/, "");
 }
 
-type RequestOptions = { method?: "GET" | "POST" | "DELETE"; json?: unknown };
+type RequestOptions = {
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  json?: unknown;
+};
+
+// A 204 has no body: the parsed body is null.
+const noContentSchema = z.null();
 
 async function request<T>(
   getToken: GetToken,
@@ -79,6 +90,20 @@ export function createApiClient(getToken: GetToken) {
   return {
     getMe: () => request(getToken, "/api/me", userSchema),
     listElders: () => request(getToken, "/api/elders", z.array(elderSchema)),
+    getElder: (id: string) =>
+      request(
+        getToken,
+        `/api/elders/${encodeURIComponent(id)}`,
+        elderDetailSchema,
+      ),
+    listElderCalls: (id: string, before?: string) => {
+      const query = before ? `?before=${encodeURIComponent(before)}` : "";
+      return request(
+        getToken,
+        `/api/elders/${encodeURIComponent(id)}/calls${query}`,
+        callPageSchema,
+      );
+    },
     createElder: (body: ElderCreate) =>
       request(getToken, "/api/elders", registrationSchema, {
         method: "POST",
@@ -120,6 +145,39 @@ export function createApiClient(getToken: GetToken) {
       request(getToken, "/api/telegram", telegramStatusSchema, {
         method: "DELETE",
       }),
+    listKbDocuments: (q?: string) => {
+      const query = q ? `?q=${encodeURIComponent(q)}` : "";
+      return request(
+        getToken,
+        `/api/admin/kb/documents${query}`,
+        z.array(kbDocumentSummarySchema),
+      );
+    },
+    getKbDocument: (id: string) =>
+      request(
+        getToken,
+        `/api/admin/kb/documents/${encodeURIComponent(id)}`,
+        kbDocumentSchema,
+      ),
+    createKbDocument: (body: KbDocumentInput) =>
+      request(getToken, "/api/admin/kb/documents", kbDocumentSchema, {
+        method: "POST",
+        json: body,
+      }),
+    updateKbDocument: (id: string, body: KbDocumentInput) =>
+      request(
+        getToken,
+        `/api/admin/kb/documents/${encodeURIComponent(id)}`,
+        kbDocumentSchema,
+        { method: "PUT", json: body },
+      ),
+    deleteKbDocument: (id: string) =>
+      request(
+        getToken,
+        `/api/admin/kb/documents/${encodeURIComponent(id)}`,
+        noContentSchema,
+        { method: "DELETE" },
+      ),
   };
 }
 
