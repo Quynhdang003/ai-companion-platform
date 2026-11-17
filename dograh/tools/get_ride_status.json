@@ -1,0 +1,33 @@
+{
+  "name": "get_ride_status",
+  "description": "Xem chuyến xe hiện tại của người gọi đang ở đâu: đang tìm tài xế, tài xế đã nhận, xe sắp đến, đang đi, đã đến nơi hay đã bị hủy. Gọi khi người gọi hỏi về xe đã đặt (xe đến chưa, còn bao lâu, tài xế là ai, xe biển số gì). Công cụ không cần tham số nào. Kết quả có status (found, no_ride hoặc unavailable) và message (nói nguyên văn).",
+  "category": "http_api",
+  "definition": {
+    "schema_version": 1,
+    "type": "http_api",
+    "messages": [
+      {
+        "type": "text",
+        "event": "delayed",
+        "after_ms": 1500,
+        "text": "Dạ, con xem xe đang ở đâu một chút ạ."
+      }
+    ],
+    "config": {
+      "method": "POST",
+      "url": "http://host.docker.internal:8000/tools/get-ride-status",
+      "credential_uuid": "<CREDENTIAL_UUID>",
+      "parameters": [],
+      "preset_parameters": [
+        {
+          "name": "session_token",
+          "type": "string",
+          "value_template": "{{initial_context.session_token}}",
+          "required": true
+        }
+      ],
+      "timeout_ms": 10000,
+      "body_format": "json"
+    }
+  }
+}

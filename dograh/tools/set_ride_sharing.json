@@ -1,0 +1,33 @@
+{
+  "name": "set_ride_sharing",
+  "description": "Lưu lựa chọn của người gọi về việc báo chuyến xe cho người thân qua Telegram. Gọi khi người gọi trả lời câu hỏi báo người thân sau lần đặt xe đầu tiên, hoặc khi người gọi muốn đổi hay thôi báo và đã xác nhận lại. Lựa chọn áp dụng ngay, cho cả chuyến đang đi và các chuyến sau. Kết quả có scope và message (nói nguyên văn).",
+  "category": "http_api",
+  "definition": {
+    "schema_version": 1,
+    "type": "http_api",
+    "messages": [],
+    "config": {
+      "method": "POST",
+      "url": "http://host.docker.internal:8000/tools/set-ride-sharing",
+      "credential_uuid": "<CREDENTIAL_UUID>",
+      "parameters": [
+        {
+          "name": "scope",
+          "type": "string",
+          "description": "Đúng một trong ba giá trị: none (không báo cho người thân); status (chỉ báo lúc đặt xe, lên xe, đến nơi hoặc hủy chuyến, không kèm địa chỉ; dùng khi người gọi đồng ý báo); details (báo thêm điểm đón, điểm đến và biển số xe; chỉ khi người gọi muốn người thân biết cả chỗ đi hay xe).",
+          "required": true
+        }
+      ],
+      "preset_parameters": [
+        {
+          "name": "session_token",
+          "type": "string",
+          "value_template": "{{initial_context.session_token}}",
+          "required": true
+        }
+      ],
+      "timeout_ms": 5000,
+      "body_format": "json"
+    }
+  }
+}

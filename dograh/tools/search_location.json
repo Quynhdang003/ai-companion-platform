@@ -1,0 +1,40 @@
+{
+  "name": "search_location",
+  "description": "Tìm một địa điểm để đặt xe: điểm đón hoặc điểm đến. Gọi khi người gọi muốn đi xe và đã nói chỗ đó, mỗi chỗ một lần. Không gọi để trả lời câu hỏi đường đi hay hỏi thông tin chung. Kết quả có status (found, not_found hoặc unavailable), message (câu nói được) và options: tối đa 3 chỗ, mỗi chỗ có ref (số dùng cho get_ride_quote, không đọc ra), name và address.",
+  "category": "http_api",
+  "definition": {
+    "schema_version": 1,
+    "type": "http_api",
+    "messages": [
+      {
+        "type": "text",
+        "event": "delayed",
+        "after_ms": 1500,
+        "text": "Dạ, con tìm chỗ đó một chút ạ."
+      }
+    ],
+    "config": {
+      "method": "POST",
+      "url": "http://host.docker.internal:8000/tools/search-location",
+      "credential_uuid": "<CREDENTIAL_UUID>",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "description": "Tên địa điểm hoặc địa chỉ đúng như người gọi nói, tiếng Việt có dấu, chỉ một chỗ (ví dụ: \"Bệnh viện Bạch Mai\", \"ngõ 12 phố Láng Hạ\", \"chợ Hôm\"). Không đưa tên người, số điện thoại hay những chữ như \"nhà bác\" vào.",
+          "required": true
+        }
+      ],
+      "preset_parameters": [
+        {
+          "name": "session_token",
+          "type": "string",
+          "value_template": "{{initial_context.session_token}}",
+          "required": true
+        }
+      ],
+      "timeout_ms": 10000,
+      "body_format": "json"
+    }
+  }
+}

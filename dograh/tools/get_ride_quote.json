@@ -1,0 +1,52 @@
+{
+  "name": "get_ride_quote",
+  "description": "Báo giá một chuyến xe đi ngay giữa hai chỗ đã tìm bằng search_location. Gọi khi đã có điểm đón, điểm đến và loại xe; gọi lại để báo giá loại xe khác hoặc khi giá cũ đã hết hạn. Báo giá không đặt xe. Kết quả có status (quoted, no_driver, out_of_area, too_short hoặc unavailable) và message (nói nguyên văn; khi quoted, câu này nêu loại xe, hai chỗ, giá, thời gian và hỏi người gọi có đồng ý đặt xe không).",
+  "category": "http_api",
+  "definition": {
+    "schema_version": 1,
+    "type": "http_api",
+    "messages": [
+      {
+        "type": "text",
+        "event": "delayed",
+        "after_ms": 1500,
+        "text": "Dạ, con xem giá một chút ạ."
+      }
+    ],
+    "config": {
+      "method": "POST",
+      "url": "http://host.docker.internal:8000/tools/get-ride-quote",
+      "credential_uuid": "<CREDENTIAL_UUID>",
+      "parameters": [
+        {
+          "name": "pickup_ref",
+          "type": "number",
+          "description": "Số ref của điểm đón, lấy từ options của search_location trong cuộc gọi này.",
+          "required": true
+        },
+        {
+          "name": "destination_ref",
+          "type": "number",
+          "description": "Số ref của điểm đến, lấy từ options của search_location trong cuộc gọi này.",
+          "required": true
+        },
+        {
+          "name": "ride_type",
+          "type": "string",
+          "description": "Loại xe, đúng một trong ba giá trị: bike (xe máy, xe ôm), car4 (xe bốn chỗ, taxi, ô tô) hoặc car7 (xe bảy chỗ).",
+          "required": true
+        }
+      ],
+      "preset_parameters": [
+        {
+          "name": "session_token",
+          "type": "string",
+          "value_template": "{{initial_context.session_token}}",
+          "required": true
+        }
+      ],
+      "timeout_ms": 10000,
+      "body_format": "json"
+    }
+  }
+}

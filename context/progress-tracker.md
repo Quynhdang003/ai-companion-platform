@@ -62,22 +62,19 @@ Update after every meaningful implementation change.
 
 ## In progress
 
-- None.
+- `RIDE-04` (Dograh, branch `feat/ride-04-dograh`): the six ride tools + Start/Global prompt rules are in the repo (`dograh/`), each tool valid for `dograh-api` 1.50.0's `CreateToolRequest`; not applied to Dograh yet.
+  - Next: the user creates the six tools in the Dograh UI, adds them to the Start node, pastes the prompts and publishes (v22).
+  - Then the text-chat checklist in `dograh/README.md` ("Rides", 16 cases incl. the four faults), then voice → criterion 6.
 
 ## Next
 
 In this order (about 5 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
 
-Branches, stacked: `feat/ride-booking` (holds the Week 4 plan) ← `feat/act-01-call-activity` (criterion 7, done) ← `feat/kb-01-admin-kb`. Merge them in that order, or rebase each onto `main` with the plan commit.
+Everything up to `KB-01b` is on `main` (PRs #6 and #9, 2026-11-18); the Week 4 branches are deleted. Remaining work branches off `main`.
 
-Rides (criterion 6), branch `feat/ride-booking`:
+Rides (criterion 6): `RIDE-04`, see In progress.
 
-- `RIDE-04` (Dograh): the six ride tools + prompt (verbal confirmation before `book_ride`, `cancel_ride` and sharing changes). Text chat, then voice → criterion 6.
-  - Tool timeouts above the backend's 7 s provider wait (`search_location` can take ~6 s on public Photon for an address the simulator doesn't know), with a `delayed` filler, like `check_scam`.
-  - Prompt: "same as last time" → search the names in `last_ride`; read every quote; call `book_ride` with the type the caller agreed to, only after a clear yes; on 409 `confirmation_required`, ask and wait.
-  - Sharing: when `ask_sharing`, the question is in `message`; a plain yes → `status`, `details` only when the elder asks for places or the car, no → `none`. "Đừng báo nữa" or a change in any call → `set_ride_sharing` after confirming.
-
-Admin KB (criterion 8), branch `feat/kb-01-admin-kb` (stacked on `feat/act-01-call-activity`):
+Admin KB (criterion 8), no code left (on `main`):
 
 - Text chat (the user, Dograh): ask "số tổng đài Viettel Post là số mấy" → the agent reads 1900 8095 from "Số tổng đài chính thức" (in the dev DB since `KB-01b`) → criterion 8 done.
 
@@ -114,6 +111,9 @@ Closing:
 - Family call activity starts at the call in which the elder consented (user decision, 2026-11-16): a caller who never agreed shows nothing, and calls before agreeing (declined ones included) stay hidden after consent too. The consent call is found as the elder's latest call started before `consent_at`, so no column records it.
 - `book_ride` takes the ride type the caller agreed to (the plan said no LLM parameter): when several types were quoted and read out, "the latest quote" alone could book the wrong one. A ride type is no identifier, so invariant 1 holds.
 - Ride tools answer every outcome the caller should hear with a 200, a `status` and a speakable message, and keep HTTP errors for the agent's own mistakes (unknown option number, booking too soon): the agent reads `message` either way.
+- Ride tools in Dograh time out after 10 s (`set_ride_sharing` 5 s, database only): above the backend's 7 s wait for the simulator, so a slow provider is heard as the speakable `unavailable`, not a Dograh tool error. A delayed message after 1.5 s covers the wait.
+- When each place has exactly one search result, the agent quotes at once without asking "is this the place?": the quote names both places, so one answer confirms places and price (one turn fewer on a voice call). Several results or none → the agent reads them and waits. The yes to the quote is the only confirmation `book_ride` needs.
+- Ride tools stay on the Start node with the other tools, not in a separate ride node: a node change needs edges back and adds a transition to the call.
 - Rides leave now, no scheduled pickups: those need timed dispatch in the simulator. Ride tools are for ACTIVE elders only; family sees no rides on the dashboard, only the Telegram messages the elder allowed.
 - Hybrid search in PostgreSQL: no extra infra, tolerant to STT errors.
 - KB search thresholds stay as they are (open question closed in `KB-01b`): "số tổng đài Viettel Post" returned the emergency-numbers document only because the KB had no hotlines document. With one added on the admin page, hotline questions rank it first with real embeddings; the other documents still follow in the top 3, and the agent reads the first. A question about reporting scams ranks the service intro first and the hotlines (156) second.
