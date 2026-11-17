@@ -61,7 +61,7 @@
 - Request-time client hooks (`usePathname`, `useSearchParams`) count as request data too: on dynamic routes (e.g. the `[[...sign-in]]` catch-all) they fail the prerender outside `<Suspense>`. Shared chrome takes such values as props instead (e.g. `PublicHero current="/demo"` for the active nav item).
 - Backend calls go through one typed API client in `lib/api/` (`createApiClient`; `getServerApi()` on the server, `useApi()` in Client Components), attaching the Clerk token; responses parsed with Zod schemas in `lib/api/schemas.ts`, errors thrown as `ApiError` (`status`, `code`).
 - Clerk Core 3 (`@clerk/nextjs` 7): `<SignedIn>`, `<SignedOut>` and `<Protect>` are removed; use `<Show when=...>`.
-- Forms: React Hook Form + Zod; toasts via Sonner.
+- Forms: React Hook Form + Zod; toasts via Sonner. Each layout that shows toasts mounts `<Toaster theme="light" position="top-center" />` itself (`app/dashboard/layout.tsx`, `app/admin/layout.tsx`): a page under a new layout without one shows none. Read a watched field with `useWatch`, not `watch` (React Compiler). Dialogs holding a long form pass `disablePointerDismissal`.
 
 ## Styling
 
@@ -92,12 +92,13 @@
   - Scam patterns (`app/services/scam/search.py`) are searched with a situation of a few sentences, not a question: phrase queries on word pairs (`word_pairs`, function words dropped) + vector, no trigram.
 - Scam rules (`app/services/scam/rules.py`): phrases are matched accent-free on whole words, so each phrase must stay unambiguous once folded ("giữ bí mật", not "bí mật", which folds like "bị mất"). A new phrase that folds like an everyday word gets a look-alike test (`test_look_alike_words_are_not_signals`). A decisive rule must only fire on cases no legitimate caller produces; the test set (`backend/data/scam_eval/`) checks it. `Signal` codes live in `app/models/scam.py`: the rules, the classifier's output schema and stored scam events share them. A new signal for something the elder is asked to do also goes in `ASK_SIGNALS` (`app/services/scam/engine.py`): without one of those, a classifier `high` is capped at `medium`.
 - Columns holding a scam type use `scam_type_column()` (`app/models/scam.py`), so every table shares the same values and its `CHECK` widens in one migration when a type is added.
+- KB documents change only through `app/services/rag/ingest.py` (`add_document`, `update_document`: embed first, then write; re-embed only when the title or text changed); the admin routes go through `app/services/rag/documents.py`, which checks the title before embedding and saves in a savepoint, so a title taken meanwhile is a 409, not a 500.
 - Seed data lives in `backend/data/`, loaded by a re-runnable script that skips unchanged rows (`scripts.seed_kb`; `scripts.seed_scam_patterns` embeds all new and changed patterns in one request).
 
 ## File organization
 
 - `backend/app/api/` — routes (`web/`, `dograh/`, `webhooks/`). Dograh tools resolve their caller with `resolve_call` (`app/api/dograh/session.py`).
-- `backend/app/core/` — `config` (settings), `db` (async engine, `get_db()` / `DbSession`), `auth` (Clerk JWT, `CurrentUser`, `require_role`, `FamilyUser`), `dograh_auth` (`require_dograh_key`), `errors` (`AppError`, error shape).
+- `backend/app/core/` — `config` (settings), `db` (async engine, `get_db()` / `DbSession`), `auth` (Clerk JWT, `CurrentUser`, `require_role`, `FamilyUser`, `AdminUser`), `dograh_auth` (`require_dograh_key`), `errors` (`AppError`, error shape).
 - `backend/app/services/` — business modules.
 - `backend/app/models/`, `backend/app/schemas/` — ORM models, Pydantic schemas.
 - `backend/app/llm/` — Gemini client, prompts, output schemas.

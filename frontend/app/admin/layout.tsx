@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
+import { Toaster } from "@/components/ui/sonner";
 import { getServerApi } from "@/lib/api/server";
 
 // The role check needs the backend before anything renders, so navigations
@@ -16,10 +17,12 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
 
   return (
     <>
-      <SiteHeader />
+      <SiteHeader home="/admin" />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
         {children}
       </main>
+      {/* Fixed theme, as on the dashboard: next-themes isn't mounted. */}
+      <Toaster theme="light" position="top-center" />
     </>
   );
 }

@@ -80,7 +80,7 @@ shadcn/ui on Tailwind, in `components/ui/`. Add components via shadcn CLI, don't
 - Dashboard (current, before the sidebar): page title + primary action, sections "Yêu cầu chờ bạn duyệt" (only when any), "Người thân của bạn" (card grid, dashed empty state), "Nhận cảnh báo lừa đảo" (Telegram card: status badge, connect → one-time "Mở Telegram" link in an `bg-accent-soft` panel while it waits for Start, disconnect), "Yêu cầu bạn đã gửi". Status badges are `rounded-full` pills on the soft tokens (`bg-warning-soft text-warning-text`, …), 14px text. shadcn controls default to 32px / 12–14px; pass `h-11 text-base` so inputs and buttons stay ≥ 44px and ≥ 16px.
 - Forms: centered `max-w-xl` card, shadcn `Field` + `FieldLabel` + `FieldDescription` + `FieldError`; backend error codes map to field errors, anything else to a toast.
 - Modal: centered overlay with backdrop blur.
-- Admin: tables for KB documents and scam patterns with search and CRUD dialogs.
+- Admin (`/admin`, logo leads there): "Tài liệu kiến thức" page: title + "Thêm tài liệu"; a `bg-warning-soft` note that any caller may hear the documents (no personal data); title search as a GET form (`?q=`, accent-free); a table in a `rounded-xl` card (title + source, chunk count, last change, "Sửa" / "Xóa"; below `md` the count and date move under the title and the buttons become icons with an `aria-label`); dashed empty states (no documents, no match). Add/edit in a `rounded-2xl` dialog (title, content with a character counter, optional source; a click outside doesn't close it; backend errors shown in the form, the text kept); delete asks in an alert dialog naming the document. Scam patterns get the same shape later.
 
 ## Icons
 
