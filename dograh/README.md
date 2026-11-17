@@ -4,7 +4,7 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
 
 | Path | What |
 |---|---|
-| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b, ride booking RIDE-04): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. v21 published is this export without RIDE-04 (the ride block in the Start prompt, the ride rule in the Global prompt, the six ride tools); RIDE-04 not applied yet. |
+| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b, ride booking RIDE-04): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. v23 published: same nodes, prompts and edges as this export (v22 was RIDE-04's first round; v23 added the Hanoi-only rule, a place confirmed before quoting, and no "con sẽ tìm…" turn before ride tools). |
 | `tools/confirm_activation.json` | HTTP tool body for `POST /api/v1/tools/`. |
 | `tools/search_knowledge.json` | HTTP tool body for `POST /api/v1/tools/` (RAG-02b). |
 | `tools/check_scam.json` | HTTP tool body for `POST /api/v1/tools/` (SCAM-04b). Validated with Dograh 1.50.0's `CreateToolRequest`. |
@@ -27,7 +27,9 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
     - General questions about kinds of scams stay with `search_knowledge`.
   - Rides (RIDE-04, flow C): only for `active` callers, or a pending caller who just consented in this call. Anyone else hears that rides are for registered, consenting users, and no ride tool runs. Rides leave now: a request for a set time gets no tool call.
     - The agent collects pickup, destination and ride type (xe máy → `bike`, bốn chỗ / taxi / ô tô → `car4`, bảy chỗ → `car7`), one question per turn. "Như lần trước" reuses the places of `{{last_ride | chưa có}}` after the caller confirms them.
-    - `search_location` once per place. One option each → straight to `get_ride_quote`: the quote names both places, so the caller confirms places and price in one answer. Several options or none → say `message` and wait. Option numbers (`ref`) are never read out.
+    - Rides stay in Hanoi: another province or city → "con chỉ đặt được xe đi trong Hà Nội", no search (the simulator's place search only covers Hanoi, so it would offer unrelated places).
+    - A ride tool is called in the turn its information is complete, never after a "con sẽ tìm…" turn.
+    - `search_location` once per place: the agent says `message` and waits until the caller confirms the place, picks one or says more; with both places confirmed, `get_ride_quote`. Places confirmed by repeating `last_ride` may be quoted without asking again. Option numbers (`ref`) are never read out.
     - The quote `message` is said as is and ends with "Bác có đồng ý đặt xe không ạ?"; the agent stops there. `book_ride` (the ride type of the agreed quote) only after a clear yes in a later turn, never in the quote's turn. Hesitation or "too expensive" → no booking; another ride type → a new quote and a new yes.
     - Any other outcome: say `message` (or `error.message`). `quote_expired` → quote again and wait for a new yes; `unknown_place` → search again; `unavailable` → no retry in the same turn.
     - `ask_sharing: true` after the first booking: yes → `set_ride_sharing` `status`; places or plate wanted → `details`; no → `none`; unclear twice → nothing set.
@@ -241,27 +243,28 @@ ORDER BY r.id DESC, e->>'timestamp' LIMIT 10;
 - Setup: ride simulator on port 8001; backend with the jobs on, `RIDE_SIM_BASE_URL` and `TELEGRAM_BOT_TOKEN`; dev DB at `alembic upgrade head`. Use an ACTIVE elder whose family member connected Telegram (as in NOTI-02b).
 - Faults while the simulator runs: `PATCH http://localhost:8001/sim/config` with `{"fault": "no_driver"}` (or `driver_cancels`, `timeout`, `price_surge`; `null` turns it off). Turn it off after each case.
 - Speed, same route, for rides booked from then on: `{"time_scale": 5}` for cases 1–5, so the ride is still cancellable a minute or two after booking; `{"time_scale": 30}` to watch a whole ride (booked → on board → arrived on Telegram in about 40 s) and for case 12.
+- The sharing question comes only on the elder's first booking since they never chose. To see it again: `UPDATE elders SET ride_share_scope = NULL, ride_share_decided_at = NULL WHERE phone_e164 = '<test number>';`
 - Ga Hà Nội, Bệnh viện Bạch Mai and Chợ Hôm are built-in simulator places (found at once). A street address such as "ngõ 12 phố Láng Hạ" goes to public Photon and takes a few seconds, so the delayed message plays.
 
 Text chat as the ACTIVE elder. Check each turn's tool calls (`tool_call_started` / `tool_call_result`) and what the agent says:
 
 | # | Caller says | Expected |
 |---|---|---|
-| 1 | "Con đặt cho bác xe bốn chỗ từ Ga Hà Nội đến Bệnh viện Bạch Mai." | Two `search_location` calls, then `get_ride_quote` (`car4`) in the same turn; the quote `message` said as is, ending with the question. No `book_ride`. |
+| 1 | "Con đặt cho bác xe bốn chỗ từ Ga Hà Nội đến Bệnh viện Bạch Mai.", then "Đúng rồi." twice | `search_location` for the pickup at once and "Có phải chỗ này không ạ?"; after the yes the destination, after the next yes `get_ride_quote` (`car4`). The quote `message` said as is, ending with the question. No `book_ride`. |
 | 2 | "Ừ, đồng ý." | `book_ride` (`car4`) in this turn only, `booked`, no 409. On the elder's first booking the sharing question follows. |
 | 3 | "Có, con báo cho các con bác nhé." | `set_ride_sharing` `status`; the family's Telegram gets "đã đặt xe" within a few seconds. |
 | 4 | "Xe đến đâu rồi con?" | `get_ride_status`, its `message` (driver, car, plate, wait). |
 | 5 | "Thôi con hủy xe giúp bác." then "Để bác nghĩ đã." then "Ừ hủy đi." | The agent asks first; no tool on the hesitation; `cancel_ride` after the clear yes, `cancelled`. |
 | 6 | New session: "Đặt luôn cho bác xe máy từ Chợ Hôm đến Bệnh viện Bạch Mai, khỏi báo giá." | A quote first; no `book_ride` until a yes in a later turn. |
 | 7 | After a quote: "Đắt quá." then "Thế xe máy thì bao nhiêu?" then "Được." | No booking on "đắt quá"; a `bike` quote; `book_ride` `bike`. |
-| 8 | New session: "Bác muốn đi như lần trước." | The agent repeats the places and ride type of `last_ride`, asks if that's right, then searches (found at once) and quotes. |
+| 8 | New session: "Bác muốn đi như lần trước." | The agent repeats the places and ride type of `last_ride` and asks if that's right; on yes it searches (found at once) and quotes, or confirms each place first. |
 | 9 | Fault `price_surge`, ask for a ride | The quote says "Giá lúc này đang cao hơn bình thường." |
-| 10 | Fault `no_driver`, ask for a ride | `no_driver` message; when the caller picks another type, a new quote. |
+| 10 | Fault `no_driver` (it hits the booking, not the quote), then agree to a quote | `book_ride` → `no_driver` message; fault off, the caller picks another type → a new quote. |
 | 11 | Fault `timeout`, ask for a ride | Delayed message, then `unavailable` about 7 s later; no retry in the same turn. |
 | 12 | Fault `driver_cancels`, book, then "Xe đến chưa con?" | "tài xế đã hủy chuyến…" and an offer to book another. |
 | 13 | "Từ giờ con đừng báo chuyến xe cho người nhà bác nữa." | The agent repeats the change and asks; `set_ride_sharing` `none` after a yes. |
 | 14 | "Sáng mai bảy giờ con đặt xe cho bác đi khám nhé." | Rides leave now; no ride tool. |
-| 15 | "Con đặt xe cho bác đi Hải Phòng." | `out_of_area` or not found, said as is. |
+| 15 | "Con đặt xe bốn chỗ cho bác từ Chợ Hôm về thành phố Hải Phòng." | "Dạ, con chỉ đặt được xe đi trong Hà Nội thôi ạ.", no search. |
 | 16 | Unknown `+84912000009`, and a pending number: ask for a ride | Rides are for registered, consenting users; no ride booked, no personal data. |
 
 ```sql
