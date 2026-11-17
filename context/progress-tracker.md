@@ -10,8 +10,8 @@ Update after every meaningful implementation change.
 
 - Week 4: close the three open criteria, then re-check all eight.
   - Criterion 6: voice ride booking on the self-built simulator (quote → verbal confirmation → book, fault cases), with ride sharing to family under the elder's control.
-  - Criterion 7: family sees call activity for the elders they manage.
-  - Criterion 8: an admin adds a KB document on the website and the AI answers from it.
+  - Criterion 7: family sees call activity for the elders they manage. Done (`ACT-01b`).
+  - Criterion 8: an admin adds a KB document on the website and the AI answers from it. Done (`KB-01c`).
 - Order: rides first (largest risk: new service, prompt, voice check), then call activity, then admin KB. The three groups don't depend on each other: if rides are blocked (Gemini quota, Dograh), work on another group meanwhile.
 - Reuses the Dograh tool pattern (`app/api/dograh/tools.py`), the background job pattern (`app/services/memory/job.py`), the family send rules (`app/services/notification/scam_alerts.py`) and KB ingest (`app/services/rag/ingest.py`).
 
@@ -60,6 +60,7 @@ Update after every meaningful implementation change.
 | `KB-01a` | Admin KB routes `/api/admin/kb/documents` (list with accent-free title search, read, add, edit, delete), embedded on save; `update_document` split out of `sync_document` (a new source alone no longer re-embeds) | 703 tests (23 new): family 403, signed out 401; a saved document answers `search_knowledge` at once, an edit replaces its chunks, a delete removes them; taken title 409 before embedding, also when saved meanwhile (savepoint); embedding errors 503 / no key 500 store nothing and keep the old version |
 | `RIDE-04` | Dograh: six ride tools + prompt rules (workflow v23): search, confirm, quote, yes, book | Text chat as the ACTIVE elder, real backend + ride-sim (×5, ×30) + Telegram, 15 of 16 cases (pending number skipped: the dev DB's only one is real). Each place searched and confirmed, quote said as is, `book_ride` only in the yes turn (no 409); "khỏi báo giá" still quoted; "đắt quá" not booked, then bike quoted and booked; sharing asked on the first booking → `status`, family got all 7 updates (booked, on board, arrived, cancelled), "đừng báo nữa" → `none` after a yes; status read; cancel asked first, none on hesitation; last ride recalled; surge read; `no_driver` on booking → other type quoted; `timeout` → filler, `unavailable` at 7.3 s, no retry; driver cancel reported with a rebook offer; scheduled ride, Hải Phòng and unknown caller: no ride tool. v23 fixed v22's Hải Phòng search and a "con tìm trước nhé" turn without a tool call |
 | `KB-01b` | `/admin` KB page: table with accent-free title search, add/edit dialogs, delete confirm; shadcn `table`, `dialog`, `textarea`, `alert-dialog`; Toaster in the admin layout. Criterion 8 on the web side done; the agent's answer in a text chat is the user's step | Lint + build. Prod build + backend (dev DB, jobs off, real Gemini) + Clerk dev, headless Chrome, 21 checks: empty form and taken title refused in the form; the "Số tổng đài chính thức" document added (indexed in 0.9 s), edited (1.0 s), found by "tong DAI"; a scratch document deleted after a cancelled confirm; no overflow at 1440/390 (dialog fits); family user sent from `/admin` to the dashboard, its token 403 on the admin API. `search_knowledge` with real embeddings: Viettel Post, Vina and Vietcombank questions → the new document first (0.3–1.0 s), ambulance → emergency numbers, gold price → nothing. Test users removed; the hotlines document stays in the dev DB |
+| `KB-01c` | The agent answers from a document an admin added on the website. **Criterion 8 done** | 2026-11-18, the user: text chat "số tổng đài Viettel Post là số mấy" → the agent read 1900 8095 from "Số tổng đài chính thức" |
 
 ## In progress
 
@@ -98,10 +99,6 @@ Rides (criterion 6), not closed:
   - Text chat: repeat cases 1 and 6 several times and count preambles and made-up numbers. A prompt lowers the rate; it can't rule it out.
   - Then voice: case 6 and `price_surge` → criterion 6.
 
-Admin KB (criterion 8), no code left (on `main`):
-
-- Text chat (the user, Dograh): ask "số tổng đài Viettel Post là số mấy" → the agent reads 1900 8095 from "Số tổng đài chính thức" (in the dev DB since `KB-01b`) → criterion 8 done.
-
 Closing:
 
 - `CHK-02`: re-check all 8 criteria, prune session notes, update the README.
@@ -117,14 +114,14 @@ Closing:
 
 ## Open questions
 
-- Real telephony provider (if time allows) and its caller ID format.
 - Data retention period for transcripts and recordings.
-- Public demo hotline number for `/demo` (depends on real telephony), and whether the footer should name the university.
+- Whether the `/demo` footer should name the university.
 - Orphaned elders: if an owner deletes their account, the elder stays but pending link requests have nobody to approve them.
 - Link request notifications: owners only see requests on the dashboard until the Notification Service exists.
 
 ## Architecture decisions
 
+- Real telephony is not added (user decision 2026-11-18): the eight success criteria stay, and web calls are the voice channel. A free Asterisk + softphone unit was considered (Dograh 1.50.0 takes Asterisk calls over ARI, caller ID as `from_number`, no backend change) and dropped. The `/demo` hotline stays unset ("Sắp ra mắt").
 - Clerk for web auth: fast integration, business data kept in PostgreSQL.
 - Elder identity by phone + consent activation on first call: no account needed, records consent.
 - Per-call `session_token` via Preset Parameter: LLM can't spoof identity.
