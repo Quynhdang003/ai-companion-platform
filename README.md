@@ -1,5 +1,10 @@
-# ai-companion-platform-
-The AI chats with long-term memory, answers info questions (weather, news, daily life), performs tasks (ride booking, reminders, contacting family) and detects scam signs during calls, warning the user and alerting family.
+# AI Companion Platform (Touch the Light)
+
+Voice-first AI companion for elderly people (IT graduation thesis). The elder just calls: the AI greets registered callers by name, chats with long-term memory, answers questions from a knowledge base, books rides on a self-built simulator after a spoken yes, and detects scam signs during the call, warning the elder and alerting family on Telegram. Family members register the service and follow call activity on the website; admins manage the knowledge base.
+
+## Status
+
+All eight success criteria in `context/project-overview.md` are met and were re-checked on 2026-11-18 (`CHK-02`; criteria table and evidence in `context/progress-tracker.md`). Calls run as Dograh web calls; there is no phone number (real telephony was not added).
 
 ## Structure
 
@@ -48,6 +53,7 @@ Users are also created (as `family`) on their first authenticated request, so si
    `python -c "import secrets; print(secrets.token_hex(32))"`. Other `DOGRAH_*` variables are optional (see `infra/.env.example`).
 2. Start the stack (images take ~3 GB on disk) and open the UI at http://localhost:3010. Create the first account, then set `DOGRAH_ENABLE_SIGNUP=false` and run `up -d` again (`restart` does not apply `.env` changes).
 3. Dograh reaches the backend on the host at `http://host.docker.internal:8000`. On Linux, run the backend with `--host 0.0.0.0` (see Session notes in `context/progress-tracker.md`).
+4. Create the credential, the nine HTTP tools and the workflow, then publish it: `dograh/README.md` (UI or API). The workflow export there is the source of truth for the prompts (v24).
 
 | Service | URL (host) |
 |---|---|
@@ -93,6 +99,13 @@ curl -X PATCH localhost:8001/sim/config -H 'Content-Type: application/json' -d '
 # Frontend   -> http://localhost:3000
 cd frontend && npm run dev
 ```
+
+## Before a demo
+
+- **Gemini quota.** The free tier allows 20 requests a day per model, and memory extraction uses one per call (more if it retries). It resets at 15:00 Vietnam time. Keep test calls away from the demo, or use a paid key: without quota, memories of new calls wait, and the next call can't recall them.
+- **Dograh.** The published workflow is v24, and the web call's `caller_number` Context Variable is the number of the elder you play (`dograh/README.md`, "Voice web calls").
+- **Ride simulator.** No fault set and `time_scale` 1: `curl localhost:8001/sim/config`.
+- **Telegram.** The family member connected Telegram on the dashboard, and only one backend process runs (it polls the bot).
 
 ## Checks
 

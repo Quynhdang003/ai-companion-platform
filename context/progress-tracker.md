@@ -4,16 +4,24 @@ Update after every meaningful implementation change.
 
 ## Current phase
 
-- Week 4, the last (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07, Week 2 (memory across calls, knowledge base search) finished 2026-11-09, Week 3 (scam detection in calls, Telegram alerts to family) finished 2026-11-16.
+- Week 4, the last (plan: 4 weeks, ~5h/day). Week 1 finished 2026-11-07, Week 2 (memory across calls, knowledge base search) finished 2026-11-09, Week 3 (scam detection in calls, Telegram alerts to family) finished 2026-11-16, Week 4 (rides, call activity, admin KB, final check) finished 2026-11-18.
 
 ## Current goal
 
-- Week 4: close the three open criteria, then re-check all eight. The three are closed (2026-11-18); `CHK-02` is left.
-  - Criterion 6: voice ride booking on the self-built simulator (quote → verbal confirmation → book, fault cases), with ride sharing to family under the elder's control. Done (`RIDE-04d`).
-  - Criterion 7: family sees call activity for the elders they manage. Done (`ACT-01b`).
-  - Criterion 8: an admin adds a KB document on the website and the AI answers from it. Done (`KB-01c`).
-- Order: rides first (largest risk: new service, prompt, voice check), then call activity, then admin KB. The three groups don't depend on each other: if rides are blocked (Gemini quota, Dograh), work on another group meanwhile.
-- Reuses the Dograh tool pattern (`app/api/dograh/tools.py`), the background job pattern (`app/services/memory/job.py`), the family send rules (`app/services/notification/scam_alerts.py`) and KB ingest (`app/services/rag/ingest.py`).
+- The 4-week plan is done: all eight success criteria are met (`CHK-02`, 2026-11-18). What's left is in Backlog, unscheduled.
+
+## Success criteria (re-checked in `CHK-02`, 2026-11-18)
+
+| # | Criterion | Verified in | `CHK-02` re-check |
+|---|---|---|---|
+| 1 | Family registers an elder; a taken number becomes a link request | `REG-01a`, `REG-01b` (E2E, 2 Clerk users) | 704 backend tests, frontend lint + build |
+| 2 | A pending number's first call asks consent; yes → `ACTIVE` + `consent_at` | `ID-01`, `DG-01b` | Live backend: pending hook names who registered; `confirm-activation` activates; unknown caller 404 |
+| 3 | `ACTIVE` greeted by name within 2 s; unknown: generic, no personal data | `ID-01`, `MEM-02a`, `DG-01c` (voice) | Hook 19 ms warm median (155 ms first); unknown gets status and registered flag only; voice runs 68–70 on v24 greeted by name |
+| 4 | Info from a previous call is recalled in a later one | `MEM-01`, `MEM-02a`, `MEM-02b` (voice) | Hook carries memory summary, places and last ride; failed extractions fixed in `MEM-03` |
+| 5 | High-risk scams of all 7 types flagged, warned in-call, family alerted on Telegram | `SCAM-03b` (35/35), `SCAM-04b`, `NOTI-02b` | Unknown caller, OTP story: high / bank by rule, warning, nothing stored |
+| 6 | Voice ride booking: quote, spoken yes, book; faults reported | `RIDE-01`–`RIDE-04`, `RIDE-04d` (voice) | Unknown caller's ride tool refused (403) |
+| 7 | Family sees call activity, no content, only for their elders | `ACT-01a`, `ACT-01b` | 704 backend tests, frontend lint + build |
+| 8 | An admin adds a KB document and the AI answers from it | `KB-01a`, `KB-01b`, `KB-01c` | Live `search-knowledge`: the admin's document first, with 1900 8095 |
 
 ## Completed
 
@@ -66,6 +74,7 @@ Update after every meaningful implementation change.
 | `RIDE-04d` | Voice check of rides on workflow v24 (the user). **Criterion 6 done** | 2026-11-18, runs 68–70 as the ACTIVE elder. Run 68 (case 6): no line along with any of 4 ride tool calls, quote read as is, no booking on "có rẻ hơn không", booked after "ừ ok" at the quoted price, family Telegram "booked" in 6 s. Run 70 (`price_surge`): quote read as is with "giá lúc này đang cao hơn bình thường", no booking on "vậy thôi". Run 69: a quote declined, nothing booked. Across the three runs, a line without numbers along with 2 of 6 searches (both in run 70) and none of the 3 quotes; no promise without a call, no made-up number. Other faults by text chat (`RIDE-04`) |
 | `MEM-03` | Memory job retries a failed extraction one minute later, not in the same run | 704 tests (1 new, fails on the old job). Found in `CHK-02`: back-to-back retries spent all 3 attempts of voice run 58 within 71 s, and 3 of the 5 extractions on 2026-11-17/18 needed a second try. Runs 58 and 60 requeued in the dev DB |
 | `DEP-01` | Next.js and `eslint-config-next` 16.4.3 → 16.4.6 (security advisories) | Found in `CHK-02`: `next build` compiled every page, then stopped with `SecurityFatalError`. `npm audit`: two moderate `use cache` leaks in 16.2.0–16.4.4, and the app has Cache Components on. Lockfile: only Next packages changed. Lint + build pass |
+| `CHK-02` | Final check of all eight criteria; found `MEM-03` and `DEP-01` | 2026-11-18. Backend 704 tests + ruff, ride-sim 128 + ruff, frontend lint + build (after `DEP-01`), DB at head. Live backend calls as Dograh makes them (table above), test rows removed after. Not re-run: non-ride agent text chats on v24 (Dograh key revoked; v24 changed only ride lines, those cases last ran on v20–v23) and a real family scam alert (`NOTI-02b`). Memory: the free tier's 20 requests/day ran out; test chats 61–67 set `skipped`, voice runs 58 and 60 requeued |
 
 ## In progress
 
@@ -73,14 +82,9 @@ Update after every meaningful implementation change.
 
 ## Next
 
-In this order (about 5 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
+Everything up to `RIDE-04` is on `main` (PRs #6, #9 and #10). `RIDE-04b` to `CHK-02` are on branch `feat/ride-04c` (pushed 2026-11-18, no PR yet).
 
-Everything up to `RIDE-04` is on `main` (PRs #6, #9 and #10, 2026-11-18). `RIDE-04b` to `RIDE-04d` and `KB-01c` are on branch `feat/ride-04c` (local, not pushed). Remaining work branches off `main` once it is merged.
-
-Closing:
-
-- `CHK-02`: re-check all 8 criteria, prune session notes, update the README.
-  - Criterion 4: voice runs 58 and 60 ended with `memory_status = failed` (59 `done`). `call_logs` stores no error; maybe the Gemini daily quota. Find out why.
+- `MEM-03b`: after the Gemini quota resets (15:00 Vietnam time), voice runs 58, 60 and 68–70 reach `memory_status = done`, each failure retried a minute apart.
 
 ## Backlog (unscheduled)
 
@@ -156,7 +160,7 @@ Closing:
 
 - Dograh: pre-call hook times out after 10s; web calls need hook mode `Always` + a `caller_number` context variable; greetings need a fallback for missing variables. The tool test panel sends preset values as typed (no `{{initial_context.*}}` rendering): paste a real `session_token` from the hook. Ending a text chat (`.../end`) needs body `{"expected_revision": n}`; without it the run never completes and no end-of-call webhook is sent.
 
-- Dograh workflow: signing up on the self-host calls Dograh's cloud (managed service key, billing account, SIP), and the org default routes LLM/STT/TTS/embeddings through that managed connection. Any saved change, Context Variables included, creates a draft: publish it. Edge labels become LLM function names (non-ASCII → `_`), so use ASCII `snake_case` labels. Text chat speaks only the greeting, and the prompt's first turn waits for the caller. Gemini free tier is 20 requests/day per model.
+- Dograh workflow: signing up on the self-host calls Dograh's cloud (managed service key, billing account, SIP), and the org default routes LLM/STT/TTS/embeddings through that managed connection. Any saved change, Context Variables included, creates a draft: publish it. Edge labels become LLM function names (non-ASCII → `_`), so use ASCII `snake_case` labels. Text chat speaks only the greeting, and the prompt's first turn waits for the caller.
 
 - Dograh REST API: an organization API key (UI `/api-keys`) in the `X-API-Key` header works for every route (tools, workflows, text chat); no login token needed. `PUT /workflow/<id>` with only `workflow_definition` makes a draft and keeps the model configuration and Context Variables; then `POST .../validate` and `.../publish`. Text chat turns are in the response's `session_data.turns[].events` (`tool_call_started`, `tool_call_result`, `bot_speech`).
 
@@ -164,8 +168,10 @@ Closing:
 
 - Dograh runs and tools: tool calls (name, LLM arguments, result, timestamps) are in `workflow_runs.logs -> realtime_feedback_events` (`rtf-function-call-start`/`-end`); text chats leave `logs.conversation` empty (query in `dograh/README.md`). A voice run's timeline is its `rtf-user-transcription`, `rtf-bot-text` and function-call events, with timestamps and turn numbers. Tools are loaded by UUID at run time, so tool edits need no workflow publish. Descriptions pasted from the JSON exports must drop the JSON escapes (`\"`).
 
-- Scam eval: `scripts.eval_scam` caches classifier verdicts in `backend/.cache/scam_eval/<model>.jsonl` (gitignored), keyed by situation + `PROMPT_VERSION`. The free tier also has a per-minute limit (12 back-to-back calls hit it): calls start 6 s apart, a 429 is retried once after 65 s, and a second 429 (daily quota) stops the run; the next run goes on. The daily quota resets at midnight Pacific time (15:00 in Vietnam, 14:00 during US daylight saving time). Use `--limit N` to keep some daily quota for live call tests. `--rules-only` needs no DB or key. The cache holds the engine's result, not the raw classifier verdict: after a change to how the engine treats a verdict, drop the affected rows from the cache file so they re-run.
+- Gemini free tier: 20 generate requests a day per model (memory extraction `GEMINI_MODEL`, scam classifier `GEMINI_SCAM_MODEL`), and every attempt that reaches the API counts. It resets at midnight Pacific time (15:00 in Vietnam, 14:00 during US daylight saving time); the 429 message says how long is left. A 429 pauses the memory job without spending an attempt; extractions wait meanwhile. About 15 calls a day is the budget: keep test calls away from a demo, or use a paid key.
+
+- Scam eval: `scripts.eval_scam` caches classifier verdicts in `backend/.cache/scam_eval/<model>.jsonl` (gitignored), keyed by situation + `PROMPT_VERSION`. The free tier also has a per-minute limit (12 back-to-back calls hit it): calls start 6 s apart, a 429 is retried once after 65 s, and a second 429 (daily quota) stops the run; the next run goes on. Use `--limit N` to keep some daily quota for live call tests. `--rules-only` needs no DB or key. The cache holds the engine's result, not the raw classifier verdict: after a change to how the engine treats a verdict, drop the affected rows from the cache file so they re-run.
 
 - Smoke runs with a second backend process: its scheduler works on every row of its database, so against the dev DB it handles the user's own pending work (a NOTI-02 smoke marked a real pending alert `skipped`; restored). Point such runs at a throwaway database, or turn the jobs off. `TELEGRAM_API_BASE_URL` points the bot at a local fake Bot API for end-to-end checks without a real bot.
 
-- Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` (or `-X utf8`) to print Vietnamese. curl in Git Bash sends Vietnamese query strings in the wrong encoding (`--data-urlencode "q=chợ Hôm"` finds nothing): send them from Python or PowerShell, or percent-encode the UTF-8 by hand.
+- Windows shells: Git Bash also rewrites `docker exec` container paths and API path arguments (`/app/...`, `/auth/me`); prefix with `MSYS_NO_PATHCONV=1`. Python on the Windows console needs `PYTHONIOENCODING=utf-8` (or `-X utf8`) to print Vietnamese. curl in Git Bash sends Vietnamese query strings in the wrong encoding (`--data-urlencode "q=chợ Hôm"` finds nothing): send them from Python or PowerShell, or percent-encode the UTF-8 by hand. Python's urllib to `localhost` tries IPv6 first and adds ~2 s per request against a server on 127.0.0.1: time requests with `127.0.0.1`.

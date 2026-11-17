@@ -61,7 +61,7 @@ For `ACTIVE` callers only. Rides leave now: no scheduled pickups.
 
 ## Scope
 
-**In:** Dograh calls (web-simulated; real telephony if time allows, same AI architecture); all backend modules above; self-built Ride Simulator; family + admin websites; phone-number identity with consent activation.
+**In:** Dograh calls, web-simulated (real telephony was not added, user decision 2026-11-18; it would reuse the same AI architecture); all backend modules above; self-built Ride Simulator; family + admin websites; phone-number identity with consent activation.
 
 **Out:** model training/fine-tuning; real ride platforms (Grab, Be, Xanh SM, Uber) and Karhoo Sandbox; real payments, paid subscription (only if time allows); scheduled rides and live vehicle tracking; mobile app; Zalo ZNS; Elasticsearch, Vietnamese word segmentation; telecom-level caller ID anti-spoofing (mitigated by verbal confirmation, documented as limitation).
 
