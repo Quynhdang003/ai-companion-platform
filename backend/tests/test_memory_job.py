@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 from sqlalchemy import inspect, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -18,7 +19,7 @@ from app.models import (
     MemoryCategory,
     MemoryStatus,
 )
-from app.services.memory.job import MAX_ATTEMPTS, process_next, run_memory_job
+from app.services.memory.job import MAX_ATTEMPTS, RETRY_DELAY, process_next, run_memory_job
 from tests.conftest import add_elder, add_memory, same_session
 from tests.fakes import FakeLLMClient, fake_vector
 
@@ -78,6 +79,16 @@ async def reload(session: AsyncSession, log: CallLog) -> CallLog:
     [log_id] = inspect(log).identity
     return await session.scalar(
         select(CallLog).where(CallLog.id == log_id).execution_options(populate_existing=True)
+    )
+
+
+async def backdate_last_try(session: AsyncSession, log: CallLog) -> None:
+    """Let the retry delay pass: in a test, now() is fixed for the whole transaction."""
+    [log_id] = inspect(log).identity
+    await session.execute(
+        sql_update(CallLog)
+        .where(CallLog.id == log_id)
+        .values(updated_at=datetime.now(UTC) - RETRY_DELAY - timedelta(minutes=5))
     )
 
 
@@ -207,6 +218,7 @@ async def test_invalid_output_writes_nothing_and_fails_after_max_attempts(
         assert await process_next(session, llm) is True
         log = await reload(session, log)
         assert log.memory_attempts == attempt
+        await backdate_last_try(session, log)
 
     assert log.memory_status is MemoryStatus.FAILED
     assert await process_next(session, llm) is False
@@ -229,6 +241,28 @@ async def test_embedding_failure_writes_nothing(
     assert memory.content == BACH_MAI
     log = await reload(session, log)
     assert (log.memory_status, log.memory_attempts) == (MemoryStatus.PENDING, 1)
+
+
+async def test_failed_log_waits_the_retry_delay_while_others_go_on(
+    session: AsyncSession, elder: Elder, llm: FakeLLMClient
+) -> None:
+    first = await add_call_log(session, elder)
+    second = await add_call_log(session, elder)
+    await session.commit()
+    llm.replies += [LLMError("Gemini API error 503"), {"memories": []}, {"memories": []}]
+
+    assert await run_memory_job(same_session(session), llm) == 2
+
+    first, second = await reload(session, first), await reload(session, second)
+    assert (first.memory_status, first.memory_attempts) == (MemoryStatus.PENDING, 1)
+    assert second.memory_status is MemoryStatus.DONE
+    assert await process_next(session, llm) is False
+
+    await backdate_last_try(session, first)
+    assert await process_next(session, llm) is True
+
+    first = await reload(session, first)
+    assert (first.memory_status, first.memory_attempts) == (MemoryStatus.DONE, 1)
 
 
 @pytest.mark.parametrize("error", [LLMRateLimitedError("quota"), LLMNotConfiguredError("key")])

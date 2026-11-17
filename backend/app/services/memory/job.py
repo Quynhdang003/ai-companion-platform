@@ -2,13 +2,16 @@
 
 Runs from the scheduler (`app/core/scheduler.py`), never inside the end-of-call webhook
 (architecture invariant 4). A call log is claimed with `FOR UPDATE SKIP LOCKED`, so two
-workers never process the same one. Logs never contain transcript or memory text.
+workers never process the same one. A failed extraction is retried `RETRY_DELAY` after its
+last attempt, not again in the same run: Gemini's transient errors often last longer than a
+run, and back-to-back retries spent every attempt within a minute. Logs never contain
+transcript or memory text.
 """
 
 import logging
 from datetime import timedelta, timezone
 
-from sqlalchemy import case, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import SessionFactory, SessionLocal
@@ -25,20 +28,27 @@ from app.services.memory.extraction import extract_call_memories
 logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 3
+RETRY_DELAY = timedelta(minutes=1)
 BATCH_SIZE = 5
 # Relative dates in a call ("tuần sau") are resolved against the Vietnamese calendar date.
 VN_TZ = timezone(timedelta(hours=7))
 
 
 async def process_next(db: AsyncSession, llm: LLMClient) -> bool:
-    """Process the oldest pending call log; False when none is left.
+    """Process the oldest pending call log that is due; False when none is.
 
     Raises `LLMRateLimitedError` / `LLMNotConfiguredError` with the log still pending and
     its attempts unchanged, so the caller stops instead of burning attempts.
     """
     log = await db.scalar(
         select(CallLog)
-        .where(CallLog.memory_status == MemoryStatus.PENDING)
+        .where(
+            CallLog.memory_status == MemoryStatus.PENDING,
+            or_(
+                CallLog.memory_attempts == 0,
+                CallLog.updated_at < func.now() - RETRY_DELAY,
+            ),
+        )
         .order_by(CallLog.created_at)
         .limit(1)
         .with_for_update(skip_locked=True)

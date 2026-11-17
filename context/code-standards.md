@@ -35,7 +35,7 @@
   - The job is registered in `app/core/scheduler.py` (APScheduler, started in the FastAPI lifespan; `SCHEDULER_ENABLED=false` turns it off).
   - Claim one row at a time with `FOR UPDATE SKIP LOCKED`, and write its results in a savepoint, so an error leaves nothing half-written.
   - LLM errors count as attempts, up to a max, then `failed`. Rate limits and a missing key don't count: the run stops and the row stays queued.
-  - A job whose failures are worth retrying soon (sends) waits a delay between attempts instead of retrying in the same run (`scam_alerts.py`: `RETRY_DELAY` from `updated_at`).
+  - A job that retries a row waits a delay between attempts instead of retrying in the same run (`RETRY_DELAY` from `updated_at`: `scam_alerts.py`, `memory/job.py`): a provider's transient error often outlasts one run, and back-to-back retries spend every attempt at once.
   - Jobs open sessions with a `SessionFactory` (`app/core/db.py`, default `SessionLocal`); tests pass `same_session(session)` (`tests/conftest.py`).
   - Tests call the per-row function directly with `FakeLLMClient`; the test client never starts the scheduler.
   - A job that waits on a slow outside service for a row a user request may also touch doesn't hold the row lock meanwhile (`ride/sync.py`): it claims the row (a timestamp) and commits, asks the service, then writes the answer only if the row wasn't read by a request since. A user request never waits behind a slow job.
