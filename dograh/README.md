@@ -1,13 +1,14 @@
 # dograh
 
-Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`): exported workflow, prompts and HTTP tool definitions. Docs/config only, not application code. No secrets: instance-specific IDs are placeholders (`<CREDENTIAL_UUID>`, `<CONFIRM_ACTIVATION_TOOL_UUID>`, `<SEARCH_KNOWLEDGE_TOOL_UUID>`, `<CHECK_SCAM_TOOL_UUID>`).
+Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`): exported workflow, prompts and HTTP tool definitions. Docs/config only, not application code. No secrets: instance-specific IDs are placeholders (`<CREDENTIAL_UUID>`, `<CONFIRM_ACTIVATION_TOOL_UUID>`, `<SEARCH_KNOWLEDGE_TOOL_UUID>`, `<CHECK_SCAM_TOOL_UUID>`, and one `<..._TOOL_UUID>` per ride tool, e.g. `<BOOK_RIDE_TOOL_UUID>`).
 
 | Path | What |
 |---|---|
-| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b; v21 published: same nodes, prompts and edges as this export, Context Variable `caller_number` set to the ACTIVE test number; v21 only changed that variable from v20): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. |
+| `workflows/identity-consent.json` | Workflow `Touch the Light – Nhận diện & đồng ý` (DG-01b, end-of-call webhook CALL-01b, memory MEM-02b, knowledge search RAG-02b, scam check SCAM-04b, ride booking RIDE-04): body for `POST /api/v1/workflow/create/definition` + Context Variables. Source of truth for the prompts. v23 published: same nodes, prompts and edges as this export (v22 was RIDE-04's first round; v23 added the Hanoi-only rule, a place confirmed before quoting, and no "con sẽ tìm…" turn before ride tools). |
 | `tools/confirm_activation.json` | HTTP tool body for `POST /api/v1/tools/`. |
 | `tools/search_knowledge.json` | HTTP tool body for `POST /api/v1/tools/` (RAG-02b). |
 | `tools/check_scam.json` | HTTP tool body for `POST /api/v1/tools/` (SCAM-04b). Validated with Dograh 1.50.0's `CreateToolRequest`. |
+| `tools/{search_location,get_ride_quote,book_ride,get_ride_status,cancel_ride,set_ride_sharing}.json` | HTTP tool bodies for `POST /api/v1/tools/` (RIDE-04). Validated with Dograh 1.50.0's `CreateToolRequest` (parameter types: `string`, `number`, `boolean`, `object`, `array`). |
 | `prompts/*.md` | Readable copies of the prompts in the workflow JSON (regenerate when the JSON changes). |
 
 ## What the workflow does
@@ -24,13 +25,35 @@ Configuration for the self-hosted Dograh voice platform (`1.50.0`, see `infra/`)
     - The agent says the result's `message` word for word, then reassures the caller. On a tool error it says a fixed caution ("bác khoan làm theo họ…").
     - One call per story; another only when an important new detail comes up (they now ask for an OTP or money).
     - General questions about kinds of scams stay with `search_knowledge`.
-- **Global** node: tone (Vietnamese, "con"/"bác", one or two short sentences per turn) and safety rules (never ask for or repeat the caller's phone number or identifiers; never ask for an OTP, password, account or card number, not even to check a scam, and never put one in a tool parameter; emergency numbers from `search_knowledge` may be said; no claims about the service beyond the prompt and `search_knowledge` results).
+  - Rides (RIDE-04, flow C): only for `active` callers, or a pending caller who just consented in this call. Anyone else hears that rides are for registered, consenting users, and no ride tool runs. Rides leave now: a request for a set time gets no tool call.
+    - The agent collects pickup, destination and ride type (xe máy → `bike`, bốn chỗ / taxi / ô tô → `car4`, bảy chỗ → `car7`), one question per turn. "Như lần trước" reuses the places of `{{last_ride | chưa có}}` after the caller confirms them.
+    - Rides stay in Hanoi: another province or city → "con chỉ đặt được xe đi trong Hà Nội", no search (the simulator's place search only covers Hanoi, so it would offer unrelated places).
+    - A ride tool is called in the turn its information is complete, never after a "con sẽ tìm…" turn.
+    - `search_location` once per place: the agent says `message` and waits until the caller confirms the place, picks one or says more; with both places confirmed, `get_ride_quote`. Places confirmed by repeating `last_ride` may be quoted without asking again. Option numbers (`ref`) are never read out.
+    - The quote `message` is said as is and ends with "Bác có đồng ý đặt xe không ạ?"; the agent stops there. `book_ride` (the ride type of the agreed quote) only after a clear yes in a later turn, never in the quote's turn. Hesitation or "too expensive" → no booking; another ride type → a new quote and a new yes.
+    - Any other outcome: say `message` (or `error.message`). `quote_expired` → quote again and wait for a new yes; `unknown_place` → search again; `unavailable` → no retry in the same turn.
+    - `ask_sharing: true` after the first booking: yes → `set_ride_sharing` `status`; places or plate wanted → `details`; no → `none`; unclear twice → nothing set.
+    - `get_ride_status` when asked where the car is. `cancel_ride` and later sharing changes only after the agent repeats what will happen and hears a clear yes.
+- **Global** node: tone (Vietnamese, "con"/"bác", one or two short sentences per turn) and safety rules (never ask for or repeat the caller's phone number or identifiers; never ask for an OTP, password, account or card number, not even to check a scam, and never put one in a tool parameter; emergency numbers from `search_knowledge` may be said; pickup and destination may be asked for a ride, for `search_location`; no claims about the service beyond the prompt and `search_knowledge` results).
 - **End Call** node via edge `ket_thuc_cuoc_goi`.
 - Tool `confirm_activation`: no LLM parameters. A single Preset Parameter `session_token = {{initial_context.session_token}}`, so the LLM can't supply identity.
 - Tool `search_knowledge` → `POST /tools/search-knowledge`: one LLM parameter `query` and the same `session_token` preset. Dograh lets LLM arguments override presets of the same name, so the tool never declares a `session_token` parameter. If the tool is still running after 1.5 s, the agent says "Dạ, con tìm một chút ạ." (a `delayed` tool message).
 - Tool `check_scam` → `POST /tools/check-scam`: one LLM parameter `situation` and the same `session_token` preset.
   - Timeout 8000 ms: the backend answers within `SCAM_CHECK_TIMEOUT_SECONDS` (6 s), falling back to its rules past that. Dograh's default 5 s was too tight for the classifier.
   - After 1.5 s the agent says "Dạ, bác chờ con xem một chút ạ." Rule-decided cases answer in milliseconds; classifier cases take about 2–4 s.
+- Ride tools (RIDE-04) → `POST /tools/<route>` (contracts in `context/api-contracts.md`), each with the same `session_token` preset:
+
+  | Tool | LLM parameters | Timeout | Delayed message (1.5 s) |
+  |---|---|---|---|
+  | `search_location` | `query` (string) | 10000 ms | "Dạ, con tìm chỗ đó một chút ạ." |
+  | `get_ride_quote` | `pickup_ref`, `destination_ref` (number), `ride_type` (string) | 10000 ms | "Dạ, con xem giá một chút ạ." |
+  | `book_ride` | `ride_type` (string) | 10000 ms | "Dạ, con đang đặt xe, bác chờ một chút ạ." |
+  | `get_ride_status` | none | 10000 ms | "Dạ, con xem xe đang ở đâu một chút ạ." |
+  | `cancel_ride` | none | 10000 ms | "Dạ, con đang hủy chuyến, bác chờ một chút ạ." |
+  | `set_ride_sharing` | `scope` (string) | 5000 ms | none (database only) |
+
+  - 10 s is above the backend's wait for the simulator (`RIDE_PROVIDER_TIMEOUT_SECONDS`, 7 s; a place only Photon knows can take ~6 s), so a slow provider comes back as a speakable `unavailable`, not a Dograh tool timeout.
+  - `ride_type` is `bike`, `car4` or `car7`; `scope` is `none`, `status` or `details`. The backend coerces a ref sent as `2`, `2.0` or `"2"` to an integer.
 - **Webhook** node `Báo backend khi kết thúc` (not connected by edges; Dograh sends it after every run ends): `POST http://host.docker.internal:8000/hooks/call-ended`, same Bearer credential.
   - The payload template sends `workflow_run_id`, `duration_seconds`, `disposition`, `transcript_url` and `recording_url`. It never sends `session_token` or `initial_context`.
   - The backend downloads the transcript itself, for consented callers only (`context/api-contracts.md`).
@@ -41,9 +64,9 @@ Prerequisites: the stack is running (`infra/`, README "Dograh"), and the backend
 
 In the Dograh UI (http://localhost:3010):
 
-1. **Credential** (used by the hooks and both tools): type *Bearer token*, name `ai-companion-backend`, token = `DOGRAH_API_KEY`.
+1. **Credential** (used by the hooks and every tool): type *Bearer token*, name `ai-companion-backend`, token = `DOGRAH_API_KEY`.
 2. **Providers**: none needed. The workflow uses the Dograh-managed connection (created when you sign up on the self-host) for LLM, STT and TTS. Optional: *Google* (AI Studio, not Vertex), name `Gemini`, API key, as used in DG-01b's text-chat tests.
-3. **Tools**: create three HTTP API tools, all with authentication = the credential:
+3. **Tools**: create nine HTTP API tools, all with authentication = the credential:
    - `tools/confirm_activation.json`: method `POST`, URL `http://host.docker.internal:8000/tools/confirm-activation`. No parameters. One preset parameter `session_token` (string, required) = `{{initial_context.session_token}}`.
    - `tools/search_knowledge.json`: method `POST`, URL `http://host.docker.internal:8000/tools/search-knowledge`, timeout 5000 ms.
      - One parameter `query` (string, required) with the description from the JSON.
@@ -55,12 +78,15 @@ In the Dograh UI (http://localhost:3010):
      - The same preset parameter `session_token`.
      - Description: copy it from the JSON.
      - Message: event *delayed*, after 1500 ms, text "Dạ, bác chờ con xem một chút ạ."
+   - The six ride tools (`tools/search_location.json` … `tools/set_ride_sharing.json`): method `POST`, URL, timeout, parameters (name, type, description, required), the same preset parameter `session_token`, description and delayed message, all as in each JSON and the table above. `get_ride_status` and `cancel_ride` have no parameters.
+     - The backend needs `RIDE_SIM_BASE_URL` and the ride simulator running (root README); the dev DB needs the ride migrations: `cd backend && uv run alembic upgrade head`.
+     - Family ride updates need `TELEGRAM_BOT_TOKEN` and a family member who connected Telegram on the dashboard.
    - When copying a description from a JSON file into the UI, paste the plain text: `\"` becomes `"`.
    - Tool edits apply to new calls right away: Dograh loads tools by UUID at run time, so there is no workflow publish.
    - The dev KB must be seeded (`cd backend && uv run python -m scripts.seed_kb`).
    - For `check_scam`, the dev DB needs the `scam_events` migration and the scam patterns: `cd backend && uv run alembic upgrade head && uv run python -m scripts.seed_scam_patterns`. The backend needs `GEMINI_API_KEY`; the classifier uses `GEMINI_SCAM_MODEL` (default `gemini-3.5-flash-lite`).
 4. **Workflow**: create it from `workflows/identity-consent.json` (API below). The UI builder has the same fields:
-   - Start Call → pre-call data fetch, greeting, prompt, tools (all three).
+   - Start Call → pre-call data fetch, greeting, prompt, tools (all nine).
    - Webhook node → URL, method, credential, payload.
    - Settings → **Context Variables**: `caller_number` (+ empty `called_number`). Dograh sends these as `from_number` / `to_number` for web and text test calls.
    - **Model configuration** (workflow override, unchanged from version 16 to 20):
@@ -75,11 +101,12 @@ Same steps over the API (`TOKEN` from `POST /api/v1/auth/login`):
 API=http://localhost:8010/api/v1; AUTH="Authorization: Bearer $TOKEN"
 curl -s -X POST $API/credentials/ -H "$AUTH" -H 'Content-Type: application/json' \
   -d '{"name":"ai-companion-backend","credential_type":"bearer_token","credential_data":{"token":"<DOGRAH_API_KEY>"}}'   # -> uuid
-for tool in confirm_activation search_knowledge check_scam; do
+for tool in confirm_activation search_knowledge check_scam \
+            search_location get_ride_quote book_ride get_ride_status cancel_ride set_ride_sharing; do
   sed 's/<CREDENTIAL_UUID>/<uuid>/' tools/$tool.json \
     | curl -s -X POST $API/tools/ -H "$AUTH" -H 'Content-Type: application/json' -d @-                                     # -> tool_uuid
 done
-# workflow: replace the four placeholders, send {name, workflow_definition} to create/definition,
+# workflow: replace the ten placeholders, send {name, workflow_definition} to create/definition,
 # then PUT $API/workflow/<id> with {"template_context_variables": {...}} and
 # {"workflow_configurations": {"model_configuration_override": {...}}} (LLM/STT/TTS above),
 # then POST $API/workflow/<id>/validate and POST $API/workflow/<id>/publish.
@@ -211,6 +238,50 @@ FROM workflow_runs r, json_array_elements(r.logs->'realtime_feedback_events') e
 WHERE e->>'type' = 'rtf-function-call-start'
 ORDER BY r.id DESC, e->>'timestamp' LIMIT 10;
 ```
+
+**Rides** (RIDE-04, criterion 6):
+- Setup: ride simulator on port 8001; backend with the jobs on, `RIDE_SIM_BASE_URL` and `TELEGRAM_BOT_TOKEN`; dev DB at `alembic upgrade head`. Use an ACTIVE elder whose family member connected Telegram (as in NOTI-02b).
+- Faults while the simulator runs: `PATCH http://localhost:8001/sim/config` with `{"fault": "no_driver"}` (or `driver_cancels`, `timeout`, `price_surge`; `null` turns it off). Turn it off after each case.
+- Speed, same route, for rides booked from then on: `{"time_scale": 5}` for cases 1–5, so the ride is still cancellable a minute or two after booking; `{"time_scale": 30}` to watch a whole ride (booked → on board → arrived on Telegram in about 40 s) and for case 12.
+- The sharing question comes only on the elder's first booking since they never chose. To see it again: `UPDATE elders SET ride_share_scope = NULL, ride_share_decided_at = NULL WHERE phone_e164 = '<test number>';`
+- Ga Hà Nội, Bệnh viện Bạch Mai and Chợ Hôm are built-in simulator places (found at once). A street address such as "ngõ 12 phố Láng Hạ" goes to public Photon and takes a few seconds, so the delayed message plays.
+
+Text chat as the ACTIVE elder. Check each turn's tool calls (`tool_call_started` / `tool_call_result`) and what the agent says:
+
+| # | Caller says | Expected |
+|---|---|---|
+| 1 | "Con đặt cho bác xe bốn chỗ từ Ga Hà Nội đến Bệnh viện Bạch Mai.", then "Đúng rồi." twice | `search_location` for the pickup at once and "Có phải chỗ này không ạ?"; after the yes the destination, after the next yes `get_ride_quote` (`car4`). The quote `message` said as is, ending with the question. No `book_ride`. |
+| 2 | "Ừ, đồng ý." | `book_ride` (`car4`) in this turn only, `booked`, no 409. On the elder's first booking the sharing question follows. |
+| 3 | "Có, con báo cho các con bác nhé." | `set_ride_sharing` `status`; the family's Telegram gets "đã đặt xe" within a few seconds. |
+| 4 | "Xe đến đâu rồi con?" | `get_ride_status`, its `message` (driver, car, plate, wait). |
+| 5 | "Thôi con hủy xe giúp bác." then "Để bác nghĩ đã." then "Ừ hủy đi." | The agent asks first; no tool on the hesitation; `cancel_ride` after the clear yes, `cancelled`. |
+| 6 | New session: "Đặt luôn cho bác xe máy từ Chợ Hôm đến Bệnh viện Bạch Mai, khỏi báo giá." | A quote first; no `book_ride` until a yes in a later turn. |
+| 7 | After a quote: "Đắt quá." then "Thế xe máy thì bao nhiêu?" then "Được." | No booking on "đắt quá"; a `bike` quote; `book_ride` `bike`. |
+| 8 | New session: "Bác muốn đi như lần trước." | The agent repeats the places and ride type of `last_ride` and asks if that's right; on yes it searches (found at once) and quotes, or confirms each place first. |
+| 9 | Fault `price_surge`, ask for a ride | The quote says "Giá lúc này đang cao hơn bình thường." |
+| 10 | Fault `no_driver` (it hits the booking, not the quote), then agree to a quote | `book_ride` → `no_driver` message; fault off, the caller picks another type → a new quote. |
+| 11 | Fault `timeout`, ask for a ride | Delayed message, then `unavailable` about 7 s later; no retry in the same turn. |
+| 12 | Fault `driver_cancels`, book, then "Xe đến chưa con?" | "tài xế đã hủy chuyến…" and an offer to book another. |
+| 13 | "Từ giờ con đừng báo chuyến xe cho người nhà bác nữa." | The agent repeats the change and asks; `set_ride_sharing` `none` after a yes. |
+| 14 | "Sáng mai bảy giờ con đặt xe cho bác đi khám nhé." | Rides leave now; no ride tool. |
+| 15 | "Con đặt xe bốn chỗ cho bác từ Chợ Hôm về thành phố Hải Phòng." | "Dạ, con chỉ đặt được xe đi trong Hà Nội thôi ạ.", no search. |
+| 16 | Unknown `+84912000009`, and a pending number: ask for a ride | Rides are for registered, consenting users; no ride booked, no personal data. |
+
+```sql
+-- app DB: bookings, family updates, the elder's sharing choice
+SELECT b.created_at, q.ride_type, q.price_vnd, q.surge, b.status, b.cancel_reason, b.driver_plate
+FROM ride_bookings b JOIN ride_quotes q ON q.id = b.quote_id ORDER BY b.created_at DESC LIMIT 10;
+SELECT n.created_at, n.event, n.status, n.attempts, n.sent_at FROM ride_notifications n ORDER BY n.created_at DESC LIMIT 10;
+SELECT preferred_name, ride_share_scope, ride_share_decided_at FROM elders WHERE status = 'ACTIVE';
+-- Dograh DB: ride tool calls, their arguments and times
+SELECT r.id AS run, e->>'timestamp' AS at, e->'payload'->>'function_name' AS tool, e->'payload'->'arguments' AS args
+FROM workflow_runs r, json_array_elements(r.logs->'realtime_feedback_events') e
+WHERE e->>'type' = 'rtf-function-call-start'
+  AND e->'payload'->>'function_name' IN ('search_location', 'get_ride_quote', 'book_ride', 'get_ride_status', 'cancel_ride', 'set_ride_sharing')
+ORDER BY r.id DESC, e->>'timestamp' LIMIT 30;
+```
+
+Voice (web call, criterion 6): cases 1–3, one fault (`no_driver` or `price_surge`) and case 5. The agent waits for the spoken yes before `book_ride` and `cancel_ride`, and reads the price and the wait clearly.
 
 **Tool test panel**: it sends preset values exactly as typed and does **not** render `{{initial_context.*}}`. A literal template gets 401 `invalid_session`. To test, call the pre-call hook for a test number and paste the returned `session_token`. Live calls render the preset from the call's `initial_context`.
 

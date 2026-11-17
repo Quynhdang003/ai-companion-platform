@@ -1,0 +1,40 @@
+{
+  "name": "book_ride",
+  "description": "Đặt chuyến xe theo giá vừa báo của loại xe người gọi đã đồng ý. Chỉ gọi khi người gọi đã nghe câu báo giá của get_ride_quote và ở lượt sau trả lời rõ ràng là đồng ý; không bao giờ gọi cùng lượt với get_ride_quote. Kết quả có status (booked, no_quote, quote_expired, no_driver hoặc unavailable), message (nói nguyên văn) và ask_sharing (true: message đã hỏi người gọi có muốn báo người thân không, câu trả lời dùng cho set_ride_sharing). Lỗi confirmation_required nghĩa là người gọi chưa đồng ý: nói error.message rồi chờ.",
+  "category": "http_api",
+  "definition": {
+    "schema_version": 1,
+    "type": "http_api",
+    "messages": [
+      {
+        "type": "text",
+        "event": "delayed",
+        "after_ms": 1500,
+        "text": "Dạ, con đang đặt xe, bác chờ một chút ạ."
+      }
+    ],
+    "config": {
+      "method": "POST",
+      "url": "http://host.docker.internal:8000/tools/book-ride",
+      "credential_uuid": "<CREDENTIAL_UUID>",
+      "parameters": [
+        {
+          "name": "ride_type",
+          "type": "string",
+          "description": "Loại xe trong câu báo giá người gọi đã đồng ý, đúng một trong ba giá trị: bike (xe máy, xe ôm), car4 (xe bốn chỗ, taxi, ô tô) hoặc car7 (xe bảy chỗ).",
+          "required": true
+        }
+      ],
+      "preset_parameters": [
+        {
+          "name": "session_token",
+          "type": "string",
+          "value_template": "{{initial_context.session_token}}",
+          "required": true
+        }
+      ],
+      "timeout_ms": 10000,
+      "body_format": "json"
+    }
+  }
+}

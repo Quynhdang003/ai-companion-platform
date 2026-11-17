@@ -1,0 +1,33 @@
+{
+  "name": "cancel_ride",
+  "description": "Hủy chuyến xe hiện tại của người gọi. CHỈ gọi sau khi đã hỏi lại và người gọi trả lời rõ ràng là muốn hủy. Công cụ không cần tham số nào. Kết quả có status (cancelled, already_cancelled, in_progress, completed, no_ride hoặc unavailable) và message (nói nguyên văn).",
+  "category": "http_api",
+  "definition": {
+    "schema_version": 1,
+    "type": "http_api",
+    "messages": [
+      {
+        "type": "text",
+        "event": "delayed",
+        "after_ms": 1500,
+        "text": "Dạ, con đang hủy chuyến, bác chờ một chút ạ."
+      }
+    ],
+    "config": {
+      "method": "POST",
+      "url": "http://host.docker.internal:8000/tools/cancel-ride",
+      "credential_uuid": "<CREDENTIAL_UUID>",
+      "parameters": [],
+      "preset_parameters": [
+        {
+          "name": "session_token",
+          "type": "string",
+          "value_template": "{{initial_context.session_token}}",
+          "required": true
+        }
+      ],
+      "timeout_ms": 10000,
+      "body_format": "json"
+    }
+  }
+}
