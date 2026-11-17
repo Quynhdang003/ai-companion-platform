@@ -8,8 +8,8 @@ Update after every meaningful implementation change.
 
 ## Current goal
 
-- Week 4: close the three open criteria, then re-check all eight.
-  - Criterion 6: voice ride booking on the self-built simulator (quote → verbal confirmation → book, fault cases), with ride sharing to family under the elder's control.
+- Week 4: close the three open criteria, then re-check all eight. The three are closed (2026-11-18); `CHK-02` is left.
+  - Criterion 6: voice ride booking on the self-built simulator (quote → verbal confirmation → book, fault cases), with ride sharing to family under the elder's control. Done (`RIDE-04d`).
   - Criterion 7: family sees call activity for the elders they manage. Done (`ACT-01b`).
   - Criterion 8: an admin adds a KB document on the website and the AI answers from it. Done (`KB-01c`).
 - Order: rides first (largest risk: new service, prompt, voice check), then call activity, then admin KB. The three groups don't depend on each other: if rides are blocked (Gemini quota, Dograh), work on another group meanwhile.
@@ -61,7 +61,9 @@ Update after every meaningful implementation change.
 | `RIDE-04` | Dograh: six ride tools + prompt rules (workflow v23): search, confirm, quote, yes, book | Text chat as the ACTIVE elder, real backend + ride-sim (×5, ×30) + Telegram, 15 of 16 cases (pending number skipped: the dev DB's only one is real). Each place searched and confirmed, quote said as is, `book_ride` only in the yes turn (no 409); "khỏi báo giá" still quoted; "đắt quá" not booked, then bike quoted and booked; sharing asked on the first booking → `status`, family got all 7 updates (booked, on board, arrived, cancelled), "đừng báo nữa" → `none` after a yes; status read; cancel asked first, none on hesitation; last ride recalled; surge read; `no_driver` on booking → other type quoted; `timeout` → filler, `unavailable` at 7.3 s, no retry; driver cancel reported with a rebook offer; scheduled ride, Hải Phòng and unknown caller: no ride tool. v23 fixed v22's Hải Phòng search and a "con tìm trước nhé" turn without a tool call |
 | `KB-01b` | `/admin` KB page: table with accent-free title search, add/edit dialogs, delete confirm; shadcn `table`, `dialog`, `textarea`, `alert-dialog`; Toaster in the admin layout. Criterion 8 on the web side done; the agent's answer in a text chat is the user's step | Lint + build. Prod build + backend (dev DB, jobs off, real Gemini) + Clerk dev, headless Chrome, 21 checks: empty form and taken title refused in the form; the "Số tổng đài chính thức" document added (indexed in 0.9 s), edited (1.0 s), found by "tong DAI"; a scratch document deleted after a cancelled confirm; no overflow at 1440/390 (dialog fits); family user sent from `/admin` to the dashboard, its token 403 on the admin API. `search_knowledge` with real embeddings: Viettel Post, Vina and Vietcombank questions → the new document first (0.3–1.0 s), ambulance → emergency numbers, gold price → nothing. Test users removed; the hotlines document stays in the dev DB |
 | `KB-01c` | The agent answers from a document an admin added on the website. **Criterion 8 done** | 2026-11-18, the user: text chat "số tổng đài Viettel Post là số mấy" → the agent read 1900 8095 from "Số tổng đài chính thức" |
+| `RIDE-04b` | Voice check of rides on workflow v23 (the user) | 2026-11-18, runs 58–60 as the ACTIVE elder: places confirmed, quotes read as is, `book_ride` only after the spoken yes, sharing asked (a misheard answer asked again), status and cancel right, family got all 5 Telegram updates. Failed, fixed in `RIDE-04c`: run 59 said a made-up price along with `get_ride_quote` ("35.000 đồng, 15 phút"; real 21 nghìn, 11 phút; nothing booked), run 58 twice promised a search without the call. Cause: the Dograh-managed LLM says a line along with a tool call |
 | `RIDE-04c` | Prompt v24 + quote tool description: a ride tool turn holds only the call (workflow v24) | 2026-11-18, text chat ×6 as the ACTIVE elder (cases 1 and 6, three sessions each; dev backend + ride-sim): every quote said as is, no made-up number, no promise without a call, no `book_ride`. A line said along with the call in 4 of 18 ride tool turns, all `search_location` in case 6, none with a number (v23 voice run 59: in every tool turn, one with a made-up price). Dograh 1.50.0 has no setting that mutes such a line |
+| `RIDE-04d` | Voice check of rides on workflow v24 (the user). **Criterion 6 done** | 2026-11-18, runs 68–70 as the ACTIVE elder. Run 68 (case 6): no line along with any of 4 ride tool calls, quote read as is, no booking on "có rẻ hơn không", booked after "ừ ok" at the quoted price, family Telegram "booked" in 6 s. Run 70 (`price_surge`): quote read as is with "giá lúc này đang cao hơn bình thường", no booking on "vậy thôi". Run 69: a quote declined, nothing booked. Across the three runs, a line without numbers along with 2 of 6 searches (both in run 70) and none of the 3 quotes; no promise without a call, no made-up number. Other faults by text chat (`RIDE-04`) |
 
 ## In progress
 
@@ -71,35 +73,7 @@ Update after every meaningful implementation change.
 
 In this order (about 5 h left). Each unit gets its own detailed plan when it starts; units of one group may run back to back in a session (`ai-workflow-rules.md`, "Working sessions").
 
-Everything up to `RIDE-04` is on `main` (PRs #6, #9 and #10, 2026-11-18); the Week 4 branches are deleted. Remaining work branches off `main`.
-
-Rides (criterion 6), not closed:
-
-- `RIDE-04b` (voice, done 2026-11-18 by the user): three web calls as the ACTIVE elder on workflow v23 (Dograh runs 58–60, ride-sim ×1, no fault).
-  - Passed:
-    - Each place searched and confirmed, the quote said as is.
-    - `book_ride` only after the spoken yes: car4, then bike after "đắt quá" → bike quote.
-    - Sharing asked on the first booking: a misheard answer was asked again, then `status`.
-    - Status read with driver and plate.
-    - Cancel asked first; no tool on "để bác nghĩ đã".
-    - Family Telegram got all 5 updates; the first "booked" was held until the sharing answer.
-  - Failed:
-    - Run 59 ("khỏi báo giá"): in the `get_ride_quote` turn, before the result came back, the agent said a made-up price and asked for agreement, then read the real quote.
-      - Made up: "35.000 đồng, khoảng 15 phút". Real: 21 nghìn, 11 phút.
-      - Nothing was booked (the call ended idle), and `book_ride` books the quoted price anyway.
-      - The prompt rule "no price outside a tool `message`" broke.
-    - Run 58: twice "con xin phép tìm Ga Hà Nội trước nhé" with no tool call. The search started about 50 s later, after two idle prompts.
-    - No fault case by voice.
-  - Cause of both: the Dograh-managed LLM (`default`) speaks a line along with a tool call, and v23's rule against it doesn't stop it.
-- `RIDE-04d` (the user, voice): web calls on workflow v24 as the ACTIVE elder → criterion 6.
-  - Pass: in the quote turn the only amount and minutes are the result's `message`, read as is; no "con tìm…" line without a `search_location` start; `book_ride` only after the spoken yes. Check with the timeline query in `dograh/README.md` ("RIDE-04c check").
-  - Case 6 passed (run 68, 2026-11-18, 101 s):
-    - The caller gave no ride type: one question, then bike.
-    - Each place searched in its turn and confirmed; no line said along with any of the 4 ride tool calls (v23 runs 58 and 59: one in every tool turn).
-    - The quote read as is (21 nghìn, 11 phút), no other amount. "Có rẻ hơn không" → no booking, no number made up, asked again.
-    - `book_ride` after "ừ ok" at the quoted price; the family's Telegram got "booked" 6 s later.
-    - Minor: the first search query was "Chợ Hôm 79 Phố Huế", the address taken from `frequent_places`; it found the right place.
-  - Left: case 9, a web call with the simulator fault `price_surge` (turn it off after). The quote must say the price is higher than usual. Then criterion 6 closes.
+Everything up to `RIDE-04` is on `main` (PRs #6, #9 and #10, 2026-11-18). `RIDE-04b` to `RIDE-04d` and `KB-01c` are on branch `feat/ride-04c` (local, not pushed). Remaining work branches off `main` once it is merged.
 
 Closing:
 
